@@ -28,24 +28,16 @@ type Client interface {
 }
 
 type GCPClient struct {
-	cfg         *GCPClientConfig
+	cfg         *ClientConfig
 	negs        *compute.RegionNetworkEndpointGroupsClient
 	firewalls   *compute.RegionNetworkFirewallPoliciesClient
 	backendSvcs *compute.RegionBackendServicesClient
 	fwdRules    *compute.ForwardingRulesClient
 }
 
-type GCPClientConfig struct {
-	Project     string
-	Region      string
-	Network     string
-	Subnetwork  string
-	Annotations map[string]string
-}
-
 var _ Client = &GCPClient{}
 
-func NewClient(ctx context.Context, cfg GCPClientConfig, opts ...option.ClientOption) (*GCPClient, error) {
+func NewClient(ctx context.Context, cfg ClientConfig, opts ...option.ClientOption) (*GCPClient, error) {
 	negs, err := compute.NewRegionNetworkEndpointGroupsRESTClient(ctx, opts...)
 	if err != nil {
 		return nil, err
