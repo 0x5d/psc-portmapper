@@ -18,6 +18,7 @@ type Client interface {
 	// Firewalls API
 	GetFirewallPolicies(ctx context.Context, name string) (*computepb.FirewallPolicy, error)
 	CreateFirewallPolicies(ctx context.Context, name string, ports []int32, instances []string) error
+	UpdateFirewallPolicies(ctx context.Context, name string, ports []int32, instances []string) error
 	// Backend Services API
 	GetBackendService(ctx context.Context, name string) (*computepb.BackendService, error)
 	CreateBackendService(ctx context.Context, name string, neg string) error
@@ -121,6 +122,21 @@ func (c *GCPClient) CreateFirewallPolicies(ctx context.Context, name string, por
 		},
 	}
 	return call(ctx, c.firewalls.Insert, req)
+}
+
+func (c *GCPClient) UpdateFirewallPolicies(ctx context.Context, name string, ports []int32, instances []string) error {
+	reqID := uuid.New().String()
+	rule := firewallRule(ports, instances)
+	req := &computepb.PatchRegionNetworkFirewallPolicyRequest{
+		RequestId: &reqID,
+		Project:   c.cfg.Project,
+		Region:    c.cfg.Region,
+		FirewallPolicyResource: &computepb.FirewallPolicy{
+			Name:  &name,
+			Rules: []*computepb.FirewallPolicyRule{rule},
+		},
+	}
+	return call(ctx, c.firewalls.Patch, req)
 }
 
 func (c *GCPClient) GetBackendService(ctx context.Context, name string) (*computepb.BackendService, error) {
