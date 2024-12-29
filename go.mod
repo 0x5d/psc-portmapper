@@ -4,8 +4,10 @@ go 1.23.4
 
 require (
 	cloud.google.com/go/compute v1.31.0
+	github.com/go-logr/logr v1.4.2
 	github.com/google/uuid v1.6.0
 	github.com/googleapis/gax-go/v2 v2.14.1
+	github.com/sethvargo/go-envconfig v1.1.0
 	golang.org/x/sync v0.10.0
 	google.golang.org/api v0.214.0
 	k8s.io/api v0.32.0
@@ -30,7 +32,6 @@ require (
 	github.com/felixge/httpsnoop v1.0.4 // indirect
 	github.com/fsnotify/fsnotify v1.7.0 // indirect
 	github.com/fxamacker/cbor/v2 v2.7.0 // indirect
-	github.com/go-logr/logr v1.4.2 // indirect
 	github.com/go-logr/stdr v1.2.2 // indirect
 	github.com/go-logr/zapr v1.3.0 // indirect
 	github.com/go-openapi/jsonpointer v0.21.0 // indirect
