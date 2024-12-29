@@ -2,7 +2,6 @@ package gcp
 
 import (
 	"context"
-	"strconv"
 
 	compute "cloud.google.com/go/compute/apiv1"
 	"cloud.google.com/go/compute/apiv1/computepb"
@@ -110,27 +109,8 @@ func (c *GCPClient) GetFirewallPolicies(ctx context.Context, name string) (*comp
 }
 
 func (c *GCPClient) CreateFirewallPolicies(ctx context.Context, name string, ports []int32, instances []string) error {
-	allow := "allow"
-	tcp := "tcp"
-	priority := int32(1000)
-	ingress := computepb.FirewallPolicyRule_INGRESS.String()
-	strPorts := make([]string, 0, len(ports))
-	for p := range ports {
-		strPorts = append(strPorts, strconv.Itoa(p))
-	}
-	rule := &computepb.FirewallPolicyRule{
-		Action:          &allow,
-		Direction:       &ingress,
-		TargetResources: instances,
-		Priority:        &priority,
-		Match: &computepb.FirewallPolicyRuleMatcher{
-			Layer4Configs: []*computepb.FirewallPolicyRuleMatcherLayer4Config{{
-				IpProtocol: &tcp,
-				Ports:      strPorts,
-			}},
-		},
-	}
 	reqID := uuid.New().String()
+	rule := firewallRule(ports, instances)
 	req := &computepb.InsertRegionNetworkFirewallPolicyRequest{
 		RequestId: &reqID,
 		Project:   c.cfg.Project,
@@ -201,6 +181,26 @@ func (c *GCPClient) CreateForwardingRule(ctx context.Context, name, backendSvc, 
 		},
 	}
 	return call(ctx, c.fwdRules.Insert, req)
+}
+
+func firewallRule(ports []int32, instances []string) *computepb.FirewallPolicyRule {
+	allow := "allow"
+	tcp := "tcp"
+	priority := int32(1000)
+	ingress := computepb.FirewallPolicyRule_INGRESS.String()
+	strPorts := toStr(ports)
+	return &computepb.FirewallPolicyRule{
+		Action:          &allow,
+		Direction:       &ingress,
+		TargetResources: instances,
+		Priority:        &priority,
+		Match: &computepb.FirewallPolicyRuleMatcher{
+			Layer4Configs: []*computepb.FirewallPolicyRuleMatcherLayer4Config{{
+				IpProtocol: &tcp,
+				Ports:      strPorts,
+			}},
+		},
+	}
 }
 
 func callOpts() []gax.CallOption {
