@@ -35,6 +35,12 @@ type GCPClient struct {
 	fwdRules    *compute.ForwardingRulesClient
 }
 
+type PortMapping struct {
+	Port         int32
+	Instance     string
+	InstancePort int32
+}
+
 var _ Client = &GCPClient{}
 
 func NewClient(ctx context.Context, cfg ClientConfig, opts ...option.ClientOption) (*GCPClient, error) {
