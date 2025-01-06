@@ -7,6 +7,7 @@ import (
 	"cloud.google.com/go/compute/apiv1/computepb"
 	"github.com/google/uuid"
 	"github.com/googleapis/gax-go/v2"
+	"google.golang.org/api/iterator"
 	"google.golang.org/api/option"
 )
 
@@ -14,7 +15,9 @@ type Client interface {
 	// NEGs API
 	GetNEG(ctx context.Context, name string) (*computepb.NetworkEndpointGroup, error)
 	CreatePortmapNEG(ctx context.Context, name string) error
-	AttachEndpoint(ctx context.Context, neg, instance string, port, instancePort int32) error
+	ListEndpoints(ctx context.Context, neg string) ([]*PortMapping, error)
+	AttachEndpoints(ctx context.Context, neg string, mappings []*PortMapping) error
+	DetachEndpoints(ctx context.Context, neg string, mappings []*PortMapping) error
 	// Firewalls API
 	GetFirewallPolicies(ctx context.Context, name string) (*computepb.FirewallPolicy, error)
 	CreateFirewallPolicies(ctx context.Context, name string, ports []int32, instances []string) error
@@ -90,22 +93,74 @@ func (c *GCPClient) CreatePortmapNEG(ctx context.Context, name string) error {
 	return call(ctx, c.negs.Insert, req)
 }
 
-func (c *GCPClient) AttachEndpoint(ctx context.Context, neg, instance string, port, instancePort int32) error {
+func (c *GCPClient) ListEndpoints(ctx context.Context, neg string) ([]*PortMapping, error) {
+	req := &computepb.ListNetworkEndpointsRegionNetworkEndpointGroupsRequest{
+		Project:              c.cfg.Project,
+		Region:               c.cfg.Region,
+		NetworkEndpointGroup: neg,
+	}
+	it := c.negs.ListNetworkEndpoints(ctx, req, callOpts()...)
+	ms := []*PortMapping{}
+	for {
+		resp, err := it.Next()
+		if err != nil {
+			if err == iterator.Done {
+				return ms, nil
+			}
+			return nil, err
+		}
+		ms = append(ms, &PortMapping{
+			Port:         *resp.NetworkEndpoint.ClientDestinationPort,
+			Instance:     *resp.NetworkEndpoint.Instance,
+			InstancePort: *resp.NetworkEndpoint.Port,
+		})
+	}
+}
+
+func (c *GCPClient) AttachEndpoints(ctx context.Context, neg string, mappings []*PortMapping) error {
+	ms := make([]*computepb.NetworkEndpoint, 0, len(mappings))
+	for _, m := range mappings {
+		ms = append(ms, &computepb.NetworkEndpoint{
+			Annotations:           c.cfg.Annotations,
+			ClientDestinationPort: &m.Port,
+			Instance:              &m.Instance,
+			Port:                  &m.InstancePort,
+		})
+	}
 	reqID := uuid.New().String()
 	req := &computepb.AttachNetworkEndpointsRegionNetworkEndpointGroupRequest{
-		RequestId: &reqID,
-		Project:   c.cfg.Project,
-		Region:    c.cfg.Region,
+		RequestId:            &reqID,
+		Project:              c.cfg.Project,
+		Region:               c.cfg.Region,
+		NetworkEndpointGroup: neg,
 		RegionNetworkEndpointGroupsAttachEndpointsRequestResource: &computepb.RegionNetworkEndpointGroupsAttachEndpointsRequest{
-			NetworkEndpoints: []*computepb.NetworkEndpoint{{
-				Annotations:           c.cfg.Annotations,
-				ClientDestinationPort: &port,
-				Instance:              &instance,
-				Port:                  &instancePort,
-			}},
+			NetworkEndpoints: ms,
 		},
 	}
 	return call(ctx, c.negs.AttachNetworkEndpoints, req)
+}
+
+func (c *GCPClient) DetachEndpoints(ctx context.Context, neg string, mappings []*PortMapping) error {
+	ms := make([]*computepb.NetworkEndpoint, 0, len(mappings))
+	for _, m := range mappings {
+		ms = append(ms, &computepb.NetworkEndpoint{
+			Annotations:           c.cfg.Annotations,
+			ClientDestinationPort: &m.Port,
+			Instance:              &m.Instance,
+			Port:                  &m.InstancePort,
+		})
+	}
+	reqID := uuid.New().String()
+	req := &computepb.DetachNetworkEndpointsRegionNetworkEndpointGroupRequest{
+		RequestId:            &reqID,
+		Project:              c.cfg.Project,
+		Region:               c.cfg.Region,
+		NetworkEndpointGroup: neg,
+		RegionNetworkEndpointGroupsDetachEndpointsRequestResource: &computepb.RegionNetworkEndpointGroupsDetachEndpointsRequest{
+			NetworkEndpoints: ms,
+		},
+	}
+	return call(ctx, c.negs.DetachNetworkEndpoints, req)
 }
 
 func (c *GCPClient) GetFirewallPolicies(ctx context.Context, name string) (*computepb.FirewallPolicy, error) {
