@@ -27,7 +27,7 @@ type Client interface {
 	CreateBackendService(ctx context.Context, name string, neg string) error
 	// Forwarding Rules API
 	GetForwardingRule(ctx context.Context, name string) (*computepb.ForwardingRule, error)
-	CreateForwardingRule(ctx context.Context, name, backendSvc, ip string, globalAccess bool, ports []string) error
+	CreateForwardingRule(ctx context.Context, name, backendSvc string, ip *string, globalAccess *bool, ports []int32) error
 }
 
 type GCPClient struct {

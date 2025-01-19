@@ -189,6 +189,13 @@ loop:
 		return reconcile.Result{}, err
 	}
 
+	fwdRule := fwdRuleName(spec.Prefix)
+	err = r.reconcileForwardingRule(ctx, log, fwdRule, backend, ports, spec.IP, spec.GlobalAccess)
+	if err != nil {
+		log.Error(err, "Unable to reconcile forwarding rule", "name", neg)
+		return reconcile.Result{}, err
+	}
+
 	return reconcile.Result{}, nil
 }
 
@@ -330,6 +337,32 @@ func (r *PortmapReconciler) reconcileEndpoints(ctx context.Context, log logr.Log
 	return nil
 }
 
+func (r *PortmapReconciler) reconcileForwardingRule(
+	ctx context.Context,
+	log logr.Logger,
+	name string,
+	backend string,
+	ports []int32,
+	ip *string,
+	globalAccess *bool,
+) error {
+	_, err := r.gcp.GetForwardingRule(ctx, name)
+	if err == nil {
+		return nil
+	}
+	var ae *apierror.APIError
+	if !errors.As(err, &ae) || ae.HTTPCode() != http.StatusNotFound {
+		log.Error(err, "Got an unexpected error trying to get the backend.", "name", name)
+		return err
+	}
+	err = r.gcp.CreateForwardingRule(ctx, name, backend, ip, globalAccess, ports)
+	if err != nil {
+		log.Error(err, "Failed to create the forwarding rule.")
+		return err
+	}
+	return nil
+}
+
 func firewallName(prefix string) string {
 	return prefix + "psc-portmapper-firewall"
 }
@@ -340,6 +373,10 @@ func negName(prefix string) string {
 
 func backendName(prefix string) string {
 	return prefix + "psc-portmapper-backend"
+}
+
+func fwdRuleName(prefix string) string {
+	return prefix + "psc-portmapper-fwdrule"
 }
 
 // returns the *gcp.PortMapping that are in the second slice but not in the first
