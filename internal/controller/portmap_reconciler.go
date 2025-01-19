@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"regexp"
 	"time"
 
 	"github.com/0x5d/psc-portmapper/internal/gcp"
@@ -14,7 +15,9 @@ import (
 	"golang.org/x/sync/errgroup"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/apimachinery/pkg/util/intstr"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/log"
@@ -53,7 +56,7 @@ func (r *PortmapReconciler) Reconcile(ctx context.Context, req reconcile.Request
 	err := r.Get(ctx, req.NamespacedName, sts)
 	if err != nil {
 		if client.IgnoreNotFound(err) != nil {
-			log.Error(err, "Failed to get Portmap")
+			log.Error(err, "Failed to get StatefulSet.")
 			return reconcile.Result{}, err
 		}
 		log.Info("Couldn't find the STS that triggered the reconciliation.")
@@ -77,6 +80,13 @@ func (r *PortmapReconciler) Reconcile(ctx context.Context, req reconcile.Request
 		// Deal with deletion, set finalizer, etc.
 	}
 
+	nodePortName := types.NamespacedName{Name: spec.Prefix + "psc-portmapper", Namespace: req.Namespace}
+	err = r.reconcileNodePortService(ctx, log, nodePortName, spec.NodePorts, sts.Spec.Selector.MatchLabels)
+	if err != nil {
+		log.Error(err, "Failed to reconcile the NodePort service.")
+		return reconcile.Result{}, err
+	}
+
 	pods := corev1.PodList{}
 	err = r.List(ctx, &pods, client.MatchingLabels(sts.Spec.Selector.MatchLabels))
 	if err != nil {
@@ -89,7 +99,6 @@ func (r *PortmapReconciler) Reconcile(ctx context.Context, req reconcile.Request
 	}
 	nodesCh := make(chan *corev1.Node, numPods)
 	wg := errgroup.Group{}
-	// TODO: MATCH THE NODE TO THE ORDINAL
 	for _, p := range pods.Items {
 		p := p
 		nodeName := p.Spec.NodeName
@@ -127,8 +136,24 @@ loop:
 
 	// Reconcile the resources.
 	ports := make([]int32, 0, numPods)
+	mappings := make([]*gcp.PortMapping, 0, numPods)
 	for i := 0; i < numPods; i++ {
-		ports = append(ports, spec.StartPort+int32(i))
+		for _, p := range spec.NodePorts {
+			port := p.StartingPort + int32(i)
+			ports = append(ports, port)
+			nodeName := pods.Items[i].Spec.NodeName
+			node := nodes[nodeName]
+			instance, err := fqInstaceName(node.Spec.ProviderID)
+			if err != nil {
+				log.Error(err, "Failed to get the fully qualified instance name for the node.", "node", nodeName)
+				return reconcile.Result{}, err
+			}
+			mappings = append(mappings, &gcp.PortMapping{
+				Port:         port,
+				Instance:     instance,
+				InstancePort: p.NodePort,
+			})
+		}
 	}
 
 	fw := firewallName(spec.Prefix)
@@ -152,13 +177,63 @@ loop:
 		return reconcile.Result{}, err
 	}
 
-	// err = r.reconcileEndpoints(ctx, log)
-	// if err != nil {
-	// 	log.Error(err, "Unable to reconcile backend", "name", neg)
-	// 	return reconcile.Result{}, err
-	// }
+	err = r.reconcileEndpoints(ctx, log, neg, mappings)
+	if err != nil {
+		log.Error(err, "Unable to reconcile backend", "name", neg)
+		return reconcile.Result{}, err
+	}
 
 	return reconcile.Result{}, nil
+}
+
+func (r *PortmapReconciler) reconcileNodePortService(
+	ctx context.Context,
+	log logr.Logger,
+	name types.NamespacedName,
+	ports map[string]PortConfig,
+	selector map[string]string,
+) error {
+	svcPorts := make([]corev1.ServicePort, 0, len(ports))
+	for portName, m := range ports {
+		svcPorts = append(svcPorts, corev1.ServicePort{
+			Name:     portName,
+			Protocol: corev1.ProtocolTCP,
+			Port:     m.NodePort,
+			TargetPort: intstr.IntOrString{
+				Type:   intstr.Int,
+				IntVal: m.ContainerPort,
+			},
+		})
+	}
+	nodePort := corev1.Service{
+		ObjectMeta: metav1.ObjectMeta{Name: name.Name, Namespace: name.Namespace},
+		Spec: corev1.ServiceSpec{
+			Type:     corev1.ServiceTypeNodePort,
+			Selector: selector,
+			Ports:    svcPorts,
+		},
+	}
+	var np corev1.Service
+	err := r.Get(ctx, name, &np)
+	if err == nil {
+		err := r.Update(ctx, &nodePort)
+		if err != nil {
+			log.Error(err, "Failed to update the NodePort service.")
+			return err
+		}
+		return nil
+	}
+	if client.IgnoreNotFound(err) != nil {
+		log.Error(err, "Failed to get the NodePort service.")
+		return err
+	}
+
+	err = r.Create(ctx, &nodePort)
+	if err != nil {
+		log.Error(err, "Failed to create the NodePort service.")
+		return err
+	}
+	return nil
 }
 
 func (r *PortmapReconciler) reconcileFirewall(ctx context.Context, log logr.Logger, name string, ports []int32, hostnames []string) error {
@@ -280,4 +355,23 @@ func getObsoletePortMappings(expected, actual []*gcp.PortMapping) []*gcp.PortMap
 	}
 
 	return diff
+}
+
+var providerIDRegexp = regexp.MustCompile(`^gce://([^/]+)/([^/]+)/([^/]+)$`)
+
+func fqInstaceName(nodeProviderID string) (string, error) {
+	// gce://<project-id>/<zone>/<instance-name>
+	// into
+	// projects/<project-id>/zones/<zone>/instances/<instance-name>
+	matches := providerIDRegexp.FindStringSubmatch(nodeProviderID)
+	if len(matches) != 4 {
+		return "", fmt.Errorf("invalid provider ID format, expected 'gce://<project-id>/<zone>/<instance-name>', got: %s", nodeProviderID)
+	}
+
+	// matches[0] is the full string, matches[1:] are the capture groups
+	projectID := matches[1]
+	zone := matches[2]
+	instanceName := matches[3]
+
+	return fmt.Sprintf("projects/%s/zones/%s/instances/%s", projectID, zone, instanceName), nil
 }
