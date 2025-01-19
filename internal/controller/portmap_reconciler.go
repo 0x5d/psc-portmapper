@@ -76,6 +76,12 @@ func (r *PortmapReconciler) Reconcile(ctx context.Context, req reconcile.Request
 		return reconcile.Result{RequeueAfter: 1 * time.Minute}, err
 	}
 
+	err = validateSpec(log, &spec)
+	if err != nil {
+		log.Error(err, "Invalid spec")
+		return reconcile.Result{RequeueAfter: 1 * time.Minute}, err
+	}
+
 	if sts.DeletionTimestamp != nil {
 		// Deal with deletion, set finalizer, etc.
 	}

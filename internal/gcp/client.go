@@ -36,6 +36,7 @@ type GCPClient struct {
 	firewalls   *compute.RegionNetworkFirewallPoliciesClient
 	backendSvcs *compute.RegionBackendServicesClient
 	fwdRules    *compute.ForwardingRulesClient
+	svcAtts     *compute.ServiceAttachmentsClient
 }
 
 type PortMapping struct {
@@ -63,7 +64,8 @@ func NewClient(ctx context.Context, cfg ClientConfig, opts ...option.ClientOptio
 	if err != nil {
 		return nil, err
 	}
-	return &GCPClient{cfg: &cfg, negs: negs, firewalls: firewalls, backendSvcs: backendSvcs, fwdRules: fwdRules}, nil
+	svcAtts, err := compute.NewServiceAttachmentsRESTClient(ctx, opts...)
+	return &GCPClient{cfg: &cfg, negs: negs, firewalls: firewalls, backendSvcs: backendSvcs, fwdRules: fwdRules, svcAtts: svcAtts}, nil
 }
 
 func (c *GCPClient) GetNEG(ctx context.Context, name string) (*computepb.NetworkEndpointGroup, error) {
@@ -239,25 +241,49 @@ func (c *GCPClient) GetForwardingRule(ctx context.Context, name string) (*comput
 	return c.fwdRules.Get(ctx, req, callOpts()...)
 }
 
-func (c *GCPClient) CreateForwardingRule(ctx context.Context, name, backendSvc, ip string, globalAccess bool, ports []string) error {
+func (c *GCPClient) CreateForwardingRule(ctx context.Context, name, backendSvc string, ip *string, globalAccess *bool, ports []int32) error {
 	reqID := uuid.New().String()
 	scheme := computepb.BackendService_INTERNAL.String()
+	strPorts := toStr(ports)
 	req := &computepb.InsertForwardingRuleRequest{
 		RequestId: &reqID,
 		Project:   c.cfg.Project,
 		Region:    c.cfg.Region,
 		ForwardingRuleResource: &computepb.ForwardingRule{
 			Name:                &name,
-			IPAddress:           &ip,
-			AllowGlobalAccess:   &globalAccess,
+			IPAddress:           ip,
+			AllowGlobalAccess:   globalAccess,
 			BackendService:      &backendSvc,
 			Network:             &c.cfg.Network,
 			Subnetwork:          &c.cfg.Subnetwork,
-			Ports:               ports,
+			Ports:               strPorts,
 			LoadBalancingScheme: &scheme,
 		},
 	}
 	return call(ctx, c.fwdRules.Insert, req)
+}
+
+func (c *GCPClient) CreateServiceAttachment(
+	ctx context.Context,
+	name,
+	fwdRule string,
+	consumers []*computepb.ServiceAttachmentConsumerProjectLimit,
+	natSubnetFQNs []string,
+) error {
+	reqID := uuid.New().String()
+	// acceptList
+	req := &computepb.InsertServiceAttachmentRequest{
+		RequestId: &reqID,
+		Project:   c.cfg.Project,
+		Region:    c.cfg.Region,
+		ServiceAttachmentResource: &computepb.ServiceAttachment{
+			Name:                   &name,
+			ProducerForwardingRule: &fwdRule, // TODO: Should be a fqn
+			ConsumerAcceptLists:    consumers,
+			NatSubnets:             natSubnetFQNs,
+		},
+	}
+	return call(ctx, c.svcAtts.Insert, req)
 }
 
 func firewallRule(ports []int32, instances []string) *computepb.FirewallPolicyRule {
