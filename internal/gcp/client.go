@@ -28,6 +28,9 @@ type Client interface {
 	// Forwarding Rules API
 	GetForwardingRule(ctx context.Context, name string) (*computepb.ForwardingRule, error)
 	CreateForwardingRule(ctx context.Context, name, backendSvc string, ip *string, globalAccess *bool, ports []int32) error
+	// Service Attachments API
+	GetServiceAttachment(ctx context.Context, name string) (*computepb.ServiceAttachment, error)
+	CreateServiceAttachment(ctx context.Context, name, fwdRuleFQN string, consumers []*computepb.ServiceAttachmentConsumerProjectLimit, natSubnetFQNs []string) error
 }
 
 type GCPClient struct {
@@ -263,10 +266,19 @@ func (c *GCPClient) CreateForwardingRule(ctx context.Context, name, backendSvc s
 	return call(ctx, c.fwdRules.Insert, req)
 }
 
+func (c *GCPClient) GetServiceAttachment(ctx context.Context, name string) (*computepb.ServiceAttachment, error) {
+	req := &computepb.GetServiceAttachmentRequest{
+		Project:           c.cfg.Project,
+		Region:            c.cfg.Region,
+		ServiceAttachment: name,
+	}
+	return c.svcAtts.Get(ctx, req, callOpts()...)
+}
+
 func (c *GCPClient) CreateServiceAttachment(
 	ctx context.Context,
 	name,
-	fwdRule string,
+	fwdRuleFQN string,
 	consumers []*computepb.ServiceAttachmentConsumerProjectLimit,
 	natSubnetFQNs []string,
 ) error {
@@ -278,12 +290,16 @@ func (c *GCPClient) CreateServiceAttachment(
 		Region:    c.cfg.Region,
 		ServiceAttachmentResource: &computepb.ServiceAttachment{
 			Name:                   &name,
-			ProducerForwardingRule: &fwdRule, // TODO: Should be a fqn
+			ProducerForwardingRule: &fwdRuleFQN,
 			ConsumerAcceptLists:    consumers,
 			NatSubnets:             natSubnetFQNs,
 		},
 	}
 	return call(ctx, c.svcAtts.Insert, req)
+}
+
+func (c *GCPClient) ForwardingRuleFQN(name string) string {
+	return "projects/" + c.cfg.Project + "/regions/" + c.cfg.Region + "/forwardingRules/" + name
 }
 
 func firewallRule(ports []int32, instances []string) *computepb.FirewallPolicyRule {
