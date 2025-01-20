@@ -9,6 +9,7 @@ import (
 	"regexp"
 	"time"
 
+	"cloud.google.com/go/compute/apiv1/computepb"
 	"github.com/0x5d/psc-portmapper/internal/gcp"
 	"github.com/go-logr/logr"
 	"github.com/googleapis/gax-go/v2/apierror"
@@ -196,6 +197,13 @@ loop:
 		return reconcile.Result{}, err
 	}
 
+	svcAtt := svcAttName(spec.Prefix)
+	err = r.reconcileServiceAttachment(ctx, log, svcAtt, fwdRule, spec.ConsumerAcceptList, spec.NatSubnetFQNs)
+	if err != nil {
+		log.Error(err, "Unable to reconcile service attachment", "name", neg)
+		return reconcile.Result{}, err
+	}
+
 	return reconcile.Result{}, nil
 }
 
@@ -363,6 +371,32 @@ func (r *PortmapReconciler) reconcileForwardingRule(
 	return nil
 }
 
+func (r *PortmapReconciler) reconcileServiceAttachment(ctx context.Context, log logr.Logger, name string, fwdRule string, consumers []*Consumer, natSubnetFQNs []string) error {
+	_, err := r.gcp.GetServiceAttachment(ctx, name)
+	if err == nil {
+		return nil
+	}
+	var ae *apierror.APIError
+	if !errors.As(err, &ae) || ae.HTTPCode() != http.StatusNotFound {
+		log.Error(err, "Got an unexpected error trying to get the service attachment.", "name", name)
+		return err
+	}
+	consumerAcceptList := make([]*computepb.ServiceAttachmentConsumerProjectLimit, 0, len(consumers))
+	for _, c := range consumers {
+		consumerAcceptList = append(consumerAcceptList, &computepb.ServiceAttachmentConsumerProjectLimit{
+			ProjectIdOrNum:  c.ProjectIdOrNum,
+			NetworkUrl:      c.NetworkFQN,
+			ConnectionLimit: &c.ConnectionLimit,
+		})
+	}
+	err = r.gcp.CreateServiceAttachment(ctx, name, fwdRule, consumerAcceptList, natSubnetFQNs)
+	if err != nil {
+		log.Error(err, "Failed to create the service attachment.")
+		return err
+	}
+	return nil
+}
+
 func firewallName(prefix string) string {
 	return prefix + "psc-portmapper-firewall"
 }
@@ -377,6 +411,10 @@ func backendName(prefix string) string {
 
 func fwdRuleName(prefix string) string {
 	return prefix + "psc-portmapper-fwdrule"
+}
+
+func svcAttName(prefix string) string {
+	return prefix + "psc-portmapper-svcatt"
 }
 
 // returns the *gcp.PortMapping that are in the second slice but not in the first
