@@ -5,14 +5,12 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"net/http"
 	"regexp"
 	"time"
 
 	"cloud.google.com/go/compute/apiv1/computepb"
 	"github.com/0x5d/psc-portmapper/internal/gcp"
 	"github.com/go-logr/logr"
-	"github.com/googleapis/gax-go/v2/apierror"
 	"golang.org/x/sync/errgroup"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -130,14 +128,17 @@ func (r *PortmapReconciler) Reconcile(ctx context.Context, req reconcile.Request
 	}
 	nodes := map[string]*corev1.Node{}
 	hostnames := make([]string, 0, numPods)
+
 loop:
 	for {
 		select {
-		case node := <-nodesCh:
+		case node, ok := <-nodesCh:
+			if !ok {
+				break loop
+			}
 			nodes[node.ObjectMeta.Name] = node
 			hostnames = append(hostnames, node.ObjectMeta.Annotations[hostnameAnnotation])
 		default:
-			break loop
 		}
 	}
 
@@ -266,8 +267,7 @@ func (r *PortmapReconciler) reconcileFirewall(ctx context.Context, log logr.Logg
 			return err
 		}
 	}
-	var ae *apierror.APIError
-	if !errors.As(err, &ae) || ae.HTTPCode() != http.StatusNotFound {
+	if !errors.Is(err, gcp.ErrNotFound) {
 		log.Error(err, "Got an unexpected error trying to get firewall policy.", "name", name)
 		return err
 	}
@@ -284,8 +284,7 @@ func (r *PortmapReconciler) reconcileNEG(ctx context.Context, log logr.Logger, n
 	if err == nil {
 		return nil
 	}
-	var ae *apierror.APIError
-	if !errors.As(err, &ae) || ae.HTTPCode() != http.StatusNotFound {
+	if !errors.Is(err, gcp.ErrNotFound) {
 		log.Error(err, "Got an unexpected error trying to get the NEG.", "name", name)
 		return err
 	}
@@ -302,8 +301,7 @@ func (r *PortmapReconciler) reconcileBackend(ctx context.Context, log logr.Logge
 	if err == nil {
 		return nil
 	}
-	var ae *apierror.APIError
-	if !errors.As(err, &ae) || ae.HTTPCode() != http.StatusNotFound {
+	if !errors.Is(err, gcp.ErrNotFound) {
 		log.Error(err, "Got an unexpected error trying to get the backend.", "name", name)
 		return err
 	}
@@ -318,8 +316,7 @@ func (r *PortmapReconciler) reconcileBackend(ctx context.Context, log logr.Logge
 func (r *PortmapReconciler) reconcileEndpoints(ctx context.Context, log logr.Logger, neg string, mappings []*gcp.PortMapping) error {
 	eps, err := r.gcp.ListEndpoints(ctx, neg)
 	if err != nil {
-		var ae *apierror.APIError
-		if errors.As(err, &ae) && ae.HTTPCode() == http.StatusNotFound {
+		if errors.Is(err, gcp.ErrNotFound) {
 			log.Error(err, "Couldn't attach the endpoints to the NEG. Was the NEG removed manually or by another process?", "name", neg)
 		} else {
 			log.Error(err, "Got an unexpected error trying to list the NEG's endpoints.", "name", neg)
@@ -358,8 +355,7 @@ func (r *PortmapReconciler) reconcileForwardingRule(
 	if err == nil {
 		return nil
 	}
-	var ae *apierror.APIError
-	if !errors.As(err, &ae) || ae.HTTPCode() != http.StatusNotFound {
+	if !errors.Is(err, gcp.ErrNotFound) {
 		log.Error(err, "Got an unexpected error trying to get the backend.", "name", name)
 		return err
 	}
@@ -376,8 +372,7 @@ func (r *PortmapReconciler) reconcileServiceAttachment(ctx context.Context, log 
 	if err == nil {
 		return nil
 	}
-	var ae *apierror.APIError
-	if !errors.As(err, &ae) || ae.HTTPCode() != http.StatusNotFound {
+	if !errors.Is(err, gcp.ErrNotFound) {
 		log.Error(err, "Got an unexpected error trying to get the service attachment.", "name", name)
 		return err
 	}
