@@ -1,15 +1,31 @@
+//go:generate go run go.uber.org/mock/mockgen -destination mock/client.go -package mock . Client
 package gcp
 
 import (
 	"context"
+	"errors"
+	"fmt"
+	"net/http"
 
 	compute "cloud.google.com/go/compute/apiv1"
 	"cloud.google.com/go/compute/apiv1/computepb"
 	"github.com/google/uuid"
 	"github.com/googleapis/gax-go/v2"
+	"github.com/googleapis/gax-go/v2/apierror"
 	"google.golang.org/api/iterator"
 	"google.golang.org/api/option"
 )
+
+type ClientError struct {
+	msg    string
+	status int
+}
+
+var ErrNotFound = &ClientError{msg: "not found", status: http.StatusNotFound}
+
+func (e *ClientError) Error() string {
+	return fmt.Sprintf("%s (status %d)", e.msg, e.status)
+}
 
 type Client interface {
 	// NEGs API
@@ -283,7 +299,6 @@ func (c *GCPClient) CreateServiceAttachment(
 	natSubnetFQNs []string,
 ) error {
 	reqID := uuid.New().String()
-	// acceptList
 	req := &computepb.InsertServiceAttachmentRequest{
 		RequestId: &reqID,
 		Project:   c.cfg.Project,
@@ -328,6 +343,21 @@ func callOpts() []gax.CallOption {
 			return gax.OnCodes(nil, gax.Backoff{})
 		}),
 	}
+}
+
+func get[T any, U any, F func(context.Context, T, ...gax.CallOption) (U, error)](ctx context.Context, f F, req T) (U, error) {
+	u, err := f(ctx, req, callOpts()...)
+	if err != nil {
+		var ae *apierror.APIError
+		if errors.As(err, &ae) {
+			if ae.HTTPCode() != http.StatusNotFound {
+				return u, ErrNotFound
+			}
+			return u, &ClientError{msg: ae.Error(), status: ae.HTTPCode()}
+		}
+		return u, &ClientError{msg: err.Error(), status: -1}
+	}
+	return u, nil
 }
 
 func call[T any, F func(context.Context, T, ...gax.CallOption) (*compute.Operation, error)](ctx context.Context, f F, req T) error {
