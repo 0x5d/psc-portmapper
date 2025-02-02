@@ -26,6 +26,9 @@ import (
 const (
 	annotation         = "0x5d.org/psc-portmapper"
 	hostnameAnnotation = "kubernetes.io/hostname"
+
+	managedByLabel = "app.kubernetes.io/managed-by"
+	portmapperApp  = "psc-portmapper"
 )
 
 type PortmapReconciler struct {
@@ -230,7 +233,11 @@ func (r *PortmapReconciler) reconcileNodePortService(
 		})
 	}
 	nodePort := corev1.Service{
-		ObjectMeta: metav1.ObjectMeta{Name: name.Name, Namespace: name.Namespace},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      name.Name,
+			Namespace: name.Namespace,
+			Labels:    map[string]string{managedByLabel: portmapperApp},
+		},
 		Spec: corev1.ServiceSpec{
 			Type:     corev1.ServiceTypeNodePort,
 			Selector: selector,
