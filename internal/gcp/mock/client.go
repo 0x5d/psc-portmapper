@@ -230,6 +230,34 @@ func (mr *MockClientMockRecorder) ListEndpoints(ctx, neg any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListEndpoints", reflect.TypeOf((*MockClient)(nil).ListEndpoints), ctx, neg)
 }
 
+// Project mocks base method.
+func (m *MockClient) Project() string {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Project")
+	ret0, _ := ret[0].(string)
+	return ret0
+}
+
+// Project indicates an expected call of Project.
+func (mr *MockClientMockRecorder) Project() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Project", reflect.TypeOf((*MockClient)(nil).Project))
+}
+
+// Region mocks base method.
+func (m *MockClient) Region() string {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Region")
+	ret0, _ := ret[0].(string)
+	return ret0
+}
+
+// Region indicates an expected call of Region.
+func (mr *MockClientMockRecorder) Region() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Region", reflect.TypeOf((*MockClient)(nil).Region))
+}
+
 // UpdateFirewallPolicies mocks base method.
 func (m *MockClient) UpdateFirewallPolicies(ctx context.Context, name string, ports map[int32]struct{}, instances []string) error {
 	m.ctrl.T.Helper()
