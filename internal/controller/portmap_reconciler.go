@@ -92,7 +92,7 @@ func (r *PortmapReconciler) Reconcile(ctx context.Context, req reconcile.Request
 	for _, p := range spec.NodePorts {
 		ports[p.NodePort] = struct{}{}
 	}
-	nodePortName := types.NamespacedName{Name: spec.Prefix + "psc-portmapper", Namespace: req.Namespace}
+	nodePortName := types.NamespacedName{Name: nodeportName(spec.Prefix), Namespace: req.Namespace}
 	err = r.reconcileNodePortService(ctx, log, nodePortName, spec.NodePorts, sts.Spec.Selector.MatchLabels)
 	if err != nil {
 		log.Error(err, "Failed to reconcile the NodePort service.")
@@ -401,24 +401,32 @@ func (r *PortmapReconciler) reconcileServiceAttachment(ctx context.Context, log 
 	return nil
 }
 
+func nodeportName(prefix string) string {
+	return nameBase(prefix)
+}
+
 func firewallName(prefix string) string {
-	return prefix + "psc-portmapper-firewall"
+	return nameBase(prefix) + "-firewall"
 }
 
 func negName(prefix string) string {
-	return prefix + "psc-portmapper-neg"
+	return nameBase(prefix) + "-neg"
 }
 
 func backendName(prefix string) string {
-	return prefix + "psc-portmapper-backend"
+	return nameBase(prefix) + "-backend"
 }
 
 func fwdRuleName(prefix string) string {
-	return prefix + "psc-portmapper-fwdrule"
+	return nameBase(prefix) + "-fwdrule"
 }
 
 func svcAttName(prefix string) string {
-	return prefix + "psc-portmapper-svcatt"
+	return nameBase(prefix) + "-svcatt"
+}
+
+func nameBase(prefix string) string {
+	return prefix + portmapperApp
 }
 
 // returns the *gcp.PortMapping that are in the second slice but not in the first
