@@ -28,6 +28,9 @@ func (e *ClientError) Error() string {
 }
 
 type Client interface {
+	// Accessors
+	Project() string
+	Region() string
 	// NEGs API
 	GetNEG(ctx context.Context, name string) (*computepb.NetworkEndpointGroup, error)
 	CreatePortmapNEG(ctx context.Context, name string) error
@@ -85,6 +88,14 @@ func NewClient(ctx context.Context, cfg ClientConfig, opts ...option.ClientOptio
 	}
 	svcAtts, err := compute.NewServiceAttachmentsRESTClient(ctx, opts...)
 	return &GCPClient{cfg: &cfg, negs: negs, firewalls: firewalls, backendSvcs: backendSvcs, fwdRules: fwdRules, svcAtts: svcAtts}, nil
+}
+
+func (c *GCPClient) Project() string {
+	return c.cfg.Project
+}
+
+func (c *GCPClient) Region() string {
+	return c.cfg.Region
 }
 
 func (c *GCPClient) GetNEG(ctx context.Context, name string) (*computepb.NetworkEndpointGroup, error) {
