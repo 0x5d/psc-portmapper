@@ -627,9 +627,32 @@ func TestReconcile(t *testing.T) {
 
 			once(m.GetServiceAttachment(mctx, svcAtt)).Return(&computepb.ServiceAttachment{}, nil)
 		},
-	},
-	//TODO: Test endpoints detachment
-	}
+	}, {
+		name: "Detaches obsolete endpoints",
+		setup: func(t *testing.T, mock *mock.MockClient, s *state) {
+			m := mock.EXPECT()
+			strPorts := make([]string, 0, len(s.spec.NodePorts))
+			for _, port := range s.spec.NodePorts {
+				strPorts = append(strPorts, strconv.Itoa(int(port.NodePort)))
+			}
+			currentMappings := []*gcp.PortMapping{{
+				Port: 80, Instance: "instance1", InstancePort: 8080,
+			}, {
+				Port: 443, Instance: "instance2", InstancePort: 8443,
+			}}
+
+			once(m.GetFirewallPolicies(mctx, fw)).Return(firewallPolicy(strPorts), nil)
+			once(m.GetNEG(mctx, neg)).Return(&computepb.NetworkEndpointGroup{}, nil)
+			once(m.GetBackendService(mctx, be)).Return(&computepb.BackendService{}, nil)
+
+			once(m.ListEndpoints(mctx, neg)).Return(currentMappings, nil)
+			noErr(m.DetachEndpoints(mctx, neg, currentMappings))
+
+			noErr(m.AttachEndpoints(mctx, neg, s.portMappings()))
+			once(m.GetForwardingRule(mctx, fwdRule)).Return(&computepb.ForwardingRule{}, nil)
+			once(m.GetServiceAttachment(mctx, svcAtt)).Return(&computepb.ServiceAttachment{}, nil)
+		},
+	}}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
