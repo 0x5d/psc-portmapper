@@ -36,14 +36,14 @@ type Client interface {
 	DetachEndpoints(ctx context.Context, neg string, mappings []*PortMapping) error
 	// Firewalls API
 	GetFirewallPolicies(ctx context.Context, name string) (*computepb.FirewallPolicy, error)
-	CreateFirewallPolicies(ctx context.Context, name string, ports []int32, instances []string) error
-	UpdateFirewallPolicies(ctx context.Context, name string, ports []int32, instances []string) error
+	CreateFirewallPolicies(ctx context.Context, name string, ports map[int32]struct{}, instances []string) error
+	UpdateFirewallPolicies(ctx context.Context, name string, ports map[int32]struct{}, instances []string) error
 	// Backend Services API
 	GetBackendService(ctx context.Context, name string) (*computepb.BackendService, error)
 	CreateBackendService(ctx context.Context, name string, neg string) error
 	// Forwarding Rules API
 	GetForwardingRule(ctx context.Context, name string) (*computepb.ForwardingRule, error)
-	CreateForwardingRule(ctx context.Context, name, backendSvc string, ip *string, globalAccess *bool, ports []int32) error
+	CreateForwardingRule(ctx context.Context, name, backendSvc string, ip *string, globalAccess *bool, ports map[int32]struct{}) error
 	// Service Attachments API
 	GetServiceAttachment(ctx context.Context, name string) (*computepb.ServiceAttachment, error)
 	CreateServiceAttachment(ctx context.Context, name, fwdRuleFQN string, consumers []*computepb.ServiceAttachmentConsumerProjectLimit, natSubnetFQNs []string) error
@@ -191,7 +191,7 @@ func (c *GCPClient) GetFirewallPolicies(ctx context.Context, name string) (*comp
 	return c.firewalls.Get(ctx, req, callOpts()...)
 }
 
-func (c *GCPClient) CreateFirewallPolicies(ctx context.Context, name string, ports []int32, instances []string) error {
+func (c *GCPClient) CreateFirewallPolicies(ctx context.Context, name string, ports map[int32]struct{}, instances []string) error {
 	reqID := uuid.New().String()
 	rule := firewallRule(ports, instances)
 	req := &computepb.InsertRegionNetworkFirewallPolicyRequest{
@@ -206,7 +206,7 @@ func (c *GCPClient) CreateFirewallPolicies(ctx context.Context, name string, por
 	return call(ctx, c.firewalls.Insert, req)
 }
 
-func (c *GCPClient) UpdateFirewallPolicies(ctx context.Context, name string, ports []int32, instances []string) error {
+func (c *GCPClient) UpdateFirewallPolicies(ctx context.Context, name string, ports map[int32]struct{}, instances []string) error {
 	reqID := uuid.New().String()
 	rule := firewallRule(ports, instances)
 	req := &computepb.PatchRegionNetworkFirewallPolicyRequest{
@@ -260,7 +260,7 @@ func (c *GCPClient) GetForwardingRule(ctx context.Context, name string) (*comput
 	return c.fwdRules.Get(ctx, req, callOpts()...)
 }
 
-func (c *GCPClient) CreateForwardingRule(ctx context.Context, name, backendSvc string, ip *string, globalAccess *bool, ports []int32) error {
+func (c *GCPClient) CreateForwardingRule(ctx context.Context, name, backendSvc string, ip *string, globalAccess *bool, ports map[int32]struct{}) error {
 	reqID := uuid.New().String()
 	scheme := computepb.BackendService_INTERNAL.String()
 	strPorts := toStr(ports)
@@ -317,7 +317,7 @@ func (c *GCPClient) ForwardingRuleFQN(name string) string {
 	return "projects/" + c.cfg.Project + "/regions/" + c.cfg.Region + "/forwardingRules/" + name
 }
 
-func firewallRule(ports []int32, instances []string) *computepb.FirewallPolicyRule {
+func firewallRule(ports map[int32]struct{}, instances []string) *computepb.FirewallPolicyRule {
 	allow := "allow"
 	tcp := "tcp"
 	priority := int32(1000)

@@ -1,12 +1,13 @@
 package gcp
 
 import (
+	"sort"
 	"strconv"
 
 	"cloud.google.com/go/compute/apiv1/computepb"
 )
 
-func FirewallNeedsUpdate(fw *computepb.FirewallPolicy, expectedPorts []int32) bool {
+func FirewallNeedsUpdate(fw *computepb.FirewallPolicy, expectedPorts map[int32]struct{}) bool {
 	if fw == nil || len(fw.Rules) != 1 {
 		return true
 	}
@@ -31,10 +32,11 @@ func FirewallNeedsUpdate(fw *computepb.FirewallPolicy, expectedPorts []int32) bo
 	return false
 }
 
-func toStr(is []int32) []string {
+func toStr(is map[int32]struct{}) []string {
 	ss := make([]string, 0, len(is))
-	for _, i := range is {
-		ss = append(ss, strconv.Itoa(int(i)))
+	for p, _ := range is {
+		ss = append(ss, strconv.Itoa(int(p)))
 	}
+	sort.Slice(ss, func(i int, j int) bool { return ss[i] < ss[j] })
 	return ss
 }

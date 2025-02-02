@@ -85,6 +85,10 @@ func (r *PortmapReconciler) Reconcile(ctx context.Context, req reconcile.Request
 		// Deal with deletion, set finalizer, etc.
 	}
 
+	ports := map[int32]struct{}{}
+	for _, p := range spec.NodePorts {
+		ports[p.NodePort] = struct{}{}
+	}
 	nodePortName := types.NamespacedName{Name: spec.Prefix + "psc-portmapper", Namespace: req.Namespace}
 	err = r.reconcileNodePortService(ctx, log, nodePortName, spec.NodePorts, sts.Spec.Selector.MatchLabels)
 	if err != nil {
@@ -143,12 +147,10 @@ loop:
 	}
 
 	// Reconcile the resources.
-	ports := make([]int32, 0, numPods)
 	mappings := make([]*gcp.PortMapping, 0, numPods)
 	for i := 0; i < numPods; i++ {
 		for _, p := range spec.NodePorts {
 			port := p.StartingPort + int32(i)
-			ports = append(ports, port)
 			nodeName := pods.Items[i].Spec.NodeName
 			node := nodes[nodeName]
 			instance, err := fqInstaceName(node.Spec.ProviderID)
@@ -258,7 +260,7 @@ func (r *PortmapReconciler) reconcileNodePortService(
 	return nil
 }
 
-func (r *PortmapReconciler) reconcileFirewall(ctx context.Context, log logr.Logger, name string, ports []int32, hostnames []string) error {
+func (r *PortmapReconciler) reconcileFirewall(ctx context.Context, log logr.Logger, name string, ports map[int32]struct{}, hostnames []string) error {
 	fw, err := r.gcp.GetFirewallPolicies(ctx, name)
 	if err == nil && gcp.FirewallNeedsUpdate(fw, ports) {
 		err = r.gcp.UpdateFirewallPolicies(ctx, name, ports, hostnames)
@@ -347,7 +349,7 @@ func (r *PortmapReconciler) reconcileForwardingRule(
 	log logr.Logger,
 	name string,
 	backend string,
-	ports []int32,
+	ports map[int32]struct{},
 	ip *string,
 	globalAccess *bool,
 ) error {
