@@ -19,7 +19,7 @@ func FirewallNeedsUpdate(fw *computepb.FirewallPolicy, expectedPorts map[int32]s
 	if l4cfg.IpProtocol == nil || *l4cfg.IpProtocol != "tcp" {
 		return true
 	}
-	strPorts := toStr(expectedPorts)
+	strPorts := toSortedStr(expectedPorts)
 	portSet := map[string]struct{}{}
 	for _, p := range strPorts {
 		portSet[p] = struct{}{}
@@ -32,7 +32,7 @@ func FirewallNeedsUpdate(fw *computepb.FirewallPolicy, expectedPorts map[int32]s
 	return false
 }
 
-func toStr(is map[int32]struct{}) []string {
+func toSortedStr(is map[int32]struct{}) []string {
 	ss := make([]string, 0, len(is))
 	for p, _ := range is {
 		ss = append(ss, strconv.Itoa(int(p)))

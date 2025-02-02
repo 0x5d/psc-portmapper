@@ -274,7 +274,7 @@ func (c *GCPClient) GetForwardingRule(ctx context.Context, name string) (*comput
 func (c *GCPClient) CreateForwardingRule(ctx context.Context, name, backendSvc string, ip *string, globalAccess *bool, ports map[int32]struct{}) error {
 	reqID := uuid.New().String()
 	scheme := computepb.BackendService_INTERNAL.String()
-	strPorts := toStr(ports)
+	strPorts := toSortedStr(ports)
 	req := &computepb.InsertForwardingRuleRequest{
 		RequestId: &reqID,
 		Project:   c.cfg.Project,
@@ -333,7 +333,7 @@ func firewallRule(ports map[int32]struct{}, instances []string) *computepb.Firew
 	tcp := "tcp"
 	priority := int32(1000)
 	ingress := computepb.FirewallPolicyRule_INGRESS.String()
-	strPorts := toStr(ports)
+	strPorts := toSortedStr(ports)
 	return &computepb.FirewallPolicyRule{
 		Action:          &allow,
 		Direction:       &ingress,
