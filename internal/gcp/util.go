@@ -16,13 +16,16 @@ func FirewallNeedsUpdate(fw *computepb.FirewallPolicy, expectedPorts map[int32]s
 		return true
 	}
 	l4cfg := rule.Match.Layer4Configs[0]
-	if l4cfg.IpProtocol == nil || *l4cfg.IpProtocol != "tcp" {
+	if l4cfg == nil || l4cfg.IpProtocol == nil || *l4cfg.IpProtocol != "tcp" {
 		return true
 	}
 	strPorts := toSortedStr(expectedPorts)
 	portSet := map[string]struct{}{}
 	for _, p := range strPorts {
 		portSet[p] = struct{}{}
+	}
+	if len(l4cfg.Ports) != len(portSet) {
+		return true
 	}
 	for _, p := range l4cfg.Ports {
 		if _, ok := portSet[p]; !ok {
