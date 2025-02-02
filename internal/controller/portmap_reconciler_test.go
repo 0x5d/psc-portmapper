@@ -187,7 +187,6 @@ func TestReconcile(t *testing.T) {
 	be := backendName(p)
 	fwdRule := fwdRuleName(p)
 	svcAtt := svcAttName(p)
-	tcp := "tcp"
 	mctx := gomock.Any()
 
 	tests := []struct {
@@ -484,7 +483,7 @@ func TestReconcile(t *testing.T) {
 			m := mock.EXPECT()
 			fwdRuleFQN := gcp.ForwardingRuleFQN(s.project, s.region, fwdRule)
 			ports := map[int32]struct{}{}
-			strPorts := make([]string, 0, len(ports))
+			strPorts := make([]string, 0, len(s.spec.NodePorts))
 			for _, port := range s.spec.NodePorts {
 				ports[port.NodePort] = struct{}{}
 				strPorts = append(strPorts, strconv.Itoa(int(port.NodePort)))
@@ -494,30 +493,17 @@ func TestReconcile(t *testing.T) {
 				instances = append(instances, node.Name)
 			}
 			consumers := toConsumerProjectLimits(s.spec.ConsumerAcceptList)
-			fwRes := &computepb.FirewallPolicy{
-				Rules: []*computepb.FirewallPolicyRule{{
-					Match: &computepb.FirewallPolicyRuleMatcher{
-						Layer4Configs: []*computepb.FirewallPolicyRuleMatcherLayer4Config{{
-							IpProtocol: &tcp,
-							Ports:      strPorts,
-						}},
-					},
-				}},
-			}
-			once(m.GetFirewallPolicies(mctx, fw)).Return(fwRes, nil)
+
+			once(m.GetFirewallPolicies(mctx, fw)).Return(firewallPolicy(strPorts), nil)
 
 			notFound(m.GetNEG(mctx, neg))
 			noErr(m.CreatePortmapNEG(mctx, neg))
-
 			notFound(m.GetBackendService(mctx, be))
 			noErr(m.CreateBackendService(mctx, be, neg))
-
 			once(m.ListEndpoints(mctx, neg)).Return([]*gcp.PortMapping{}, nil)
 			noErr(m.AttachEndpoints(mctx, neg, s.portMappings()))
-
 			notFound(m.GetForwardingRule(mctx, fwdRule))
 			noErr(m.CreateForwardingRule(mctx, fwdRule, be, nil, nil, ports))
-
 			notFound(m.GetServiceAttachment(mctx, svcAtt))
 			noErr(m.CreateServiceAttachment(mctx, svcAtt, fwdRuleFQN, consumers, s.spec.NatSubnetFQNs))
 		},
@@ -535,36 +521,115 @@ func TestReconcile(t *testing.T) {
 				instances = append(instances, node.Name)
 			}
 			consumers := toConsumerProjectLimits(s.spec.ConsumerAcceptList)
-			fwRes := &computepb.FirewallPolicy{
-				Rules: []*computepb.FirewallPolicyRule{{
-					Match: &computepb.FirewallPolicyRuleMatcher{
-						Layer4Configs: []*computepb.FirewallPolicyRuleMatcherLayer4Config{{
-							IpProtocol: &tcp,
-							// No ports, so it needs to be updated.
-						}},
-					},
-				}},
-			}
-			once(m.GetFirewallPolicies(mctx, fw)).Return(fwRes, nil)
+
+			once(m.GetFirewallPolicies(mctx, fw)).Return(firewallPolicy(nil), nil)
 			noErr(m.UpdateFirewallPolicies(mctx, fw, ports, gomock.InAnyOrder(instances)))
 
 			notFound(m.GetNEG(mctx, neg))
 			noErr(m.CreatePortmapNEG(mctx, neg))
+			notFound(m.GetBackendService(mctx, be))
+			noErr(m.CreateBackendService(mctx, be, neg))
+			once(m.ListEndpoints(mctx, neg)).Return([]*gcp.PortMapping{}, nil)
+			noErr(m.AttachEndpoints(mctx, neg, s.portMappings()))
+			notFound(m.GetForwardingRule(mctx, fwdRule))
+			noErr(m.CreateForwardingRule(mctx, fwdRule, be, nil, nil, ports))
+			notFound(m.GetServiceAttachment(mctx, svcAtt))
+			noErr(m.CreateServiceAttachment(mctx, svcAtt, fwdRuleFQN, consumers, s.spec.NatSubnetFQNs))
+		},
+	}, {
+		name: "Doesn't create the NEG if it already exists",
+		setup: func(t *testing.T, mock *mock.MockClient, s *state) {
+			m := mock.EXPECT()
+			fwdRuleFQN := gcp.ForwardingRuleFQN(s.project, s.region, fwdRule)
+			ports := map[int32]struct{}{}
+			strPorts := make([]string, 0, len(s.spec.NodePorts))
+			for _, port := range s.spec.NodePorts {
+				ports[port.NodePort] = struct{}{}
+				strPorts = append(strPorts, strconv.Itoa(int(port.NodePort)))
+			}
+			consumers := toConsumerProjectLimits(s.spec.ConsumerAcceptList)
+
+			once(m.GetFirewallPolicies(mctx, fw)).Return(firewallPolicy(strPorts), nil)
+
+			once(m.GetNEG(mctx, neg)).Return(&computepb.NetworkEndpointGroup{}, nil)
 
 			notFound(m.GetBackendService(mctx, be))
 			noErr(m.CreateBackendService(mctx, be, neg))
+			once(m.ListEndpoints(mctx, neg)).Return([]*gcp.PortMapping{}, nil)
+			noErr(m.AttachEndpoints(mctx, neg, s.portMappings()))
+			notFound(m.GetForwardingRule(mctx, fwdRule))
+			noErr(m.CreateForwardingRule(mctx, fwdRule, be, nil, nil, ports))
+			notFound(m.GetServiceAttachment(mctx, svcAtt))
+			noErr(m.CreateServiceAttachment(mctx, svcAtt, fwdRuleFQN, consumers, s.spec.NatSubnetFQNs))
+		},
+	}, {
+		name: "Doesn't create the backend if it already exists",
+		setup: func(t *testing.T, mock *mock.MockClient, s *state) {
+			m := mock.EXPECT()
+			fwdRuleFQN := gcp.ForwardingRuleFQN(s.project, s.region, fwdRule)
+			ports := map[int32]struct{}{}
+			strPorts := make([]string, 0, len(s.spec.NodePorts))
+			for _, port := range s.spec.NodePorts {
+				ports[port.NodePort] = struct{}{}
+				strPorts = append(strPorts, strconv.Itoa(int(port.NodePort)))
+			}
+			consumers := toConsumerProjectLimits(s.spec.ConsumerAcceptList)
+
+			once(m.GetFirewallPolicies(mctx, fw)).Return(firewallPolicy(strPorts), nil)
+			once(m.GetNEG(mctx, neg)).Return(&computepb.NetworkEndpointGroup{}, nil)
+
+			once(m.GetBackendService(mctx, be)).Return(&computepb.BackendService{}, nil)
 
 			once(m.ListEndpoints(mctx, neg)).Return([]*gcp.PortMapping{}, nil)
 			noErr(m.AttachEndpoints(mctx, neg, s.portMappings()))
-
 			notFound(m.GetForwardingRule(mctx, fwdRule))
 			noErr(m.CreateForwardingRule(mctx, fwdRule, be, nil, nil, ports))
+			notFound(m.GetServiceAttachment(mctx, svcAtt))
+			noErr(m.CreateServiceAttachment(mctx, svcAtt, fwdRuleFQN, consumers, s.spec.NatSubnetFQNs))
+		},
+	}, {
+		name: "Doesn't create the forwarding rule if it already exists",
+		setup: func(t *testing.T, mock *mock.MockClient, s *state) {
+			m := mock.EXPECT()
+			fwdRuleFQN := gcp.ForwardingRuleFQN(s.project, s.region, fwdRule)
+			strPorts := make([]string, 0, len(s.spec.NodePorts))
+			for _, port := range s.spec.NodePorts {
+				strPorts = append(strPorts, strconv.Itoa(int(port.NodePort)))
+			}
+			consumers := toConsumerProjectLimits(s.spec.ConsumerAcceptList)
+
+			once(m.GetFirewallPolicies(mctx, fw)).Return(firewallPolicy(strPorts), nil)
+			once(m.GetNEG(mctx, neg)).Return(&computepb.NetworkEndpointGroup{}, nil)
+			once(m.GetBackendService(mctx, be)).Return(&computepb.BackendService{}, nil)
+			once(m.ListEndpoints(mctx, neg)).Return([]*gcp.PortMapping{}, nil)
+			noErr(m.AttachEndpoints(mctx, neg, s.portMappings()))
+
+			once(m.GetForwardingRule(mctx, fwdRule)).Return(&computepb.ForwardingRule{}, nil)
 
 			notFound(m.GetServiceAttachment(mctx, svcAtt))
 			noErr(m.CreateServiceAttachment(mctx, svcAtt, fwdRuleFQN, consumers, s.spec.NatSubnetFQNs))
 		},
-		//TODO: Test endpoints detachment
-	}}
+	}, {
+		name: "Doesn't create the service attachment if it already exists",
+		setup: func(t *testing.T, mock *mock.MockClient, s *state) {
+			m := mock.EXPECT()
+			strPorts := make([]string, 0, len(s.spec.NodePorts))
+			for _, port := range s.spec.NodePorts {
+				strPorts = append(strPorts, strconv.Itoa(int(port.NodePort)))
+			}
+
+			once(m.GetFirewallPolicies(mctx, fw)).Return(firewallPolicy(strPorts), nil)
+			once(m.GetNEG(mctx, neg)).Return(&computepb.NetworkEndpointGroup{}, nil)
+			once(m.GetBackendService(mctx, be)).Return(&computepb.BackendService{}, nil)
+			once(m.ListEndpoints(mctx, neg)).Return([]*gcp.PortMapping{}, nil)
+			noErr(m.AttachEndpoints(mctx, neg, s.portMappings()))
+			once(m.GetForwardingRule(mctx, fwdRule)).Return(&computepb.ForwardingRule{}, nil)
+
+			once(m.GetServiceAttachment(mctx, svcAtt)).Return(&computepb.ServiceAttachment{}, nil)
+		},
+	},
+	//TODO: Test endpoints detachment
+	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -628,4 +693,17 @@ func callErr(c *gomock.Call, err error) *gomock.Call {
 
 func once(c *gomock.Call) *gomock.Call {
 	return c.Times(1)
+}
+
+func firewallPolicy(ports []string) *computepb.FirewallPolicy {
+	return &computepb.FirewallPolicy{
+		Rules: []*computepb.FirewallPolicyRule{{
+			Match: &computepb.FirewallPolicyRuleMatcher{
+				Layer4Configs: []*computepb.FirewallPolicyRuleMatcherLayer4Config{{
+					IpProtocol: stringPtr("tcp"),
+					Ports:      ports,
+				}},
+			}},
+		},
+	}
 }
