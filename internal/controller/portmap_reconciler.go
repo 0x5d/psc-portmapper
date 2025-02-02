@@ -385,15 +385,8 @@ func (r *PortmapReconciler) reconcileServiceAttachment(ctx context.Context, log 
 		log.Error(err, "Got an unexpected error trying to get the service attachment.", "name", name)
 		return err
 	}
-	consumerAcceptList := make([]*computepb.ServiceAttachmentConsumerProjectLimit, 0, len(consumers))
-	for _, c := range consumers {
-		consumerAcceptList = append(consumerAcceptList, &computepb.ServiceAttachmentConsumerProjectLimit{
-			ProjectIdOrNum:  c.ProjectIdOrNum,
-			NetworkUrl:      c.NetworkFQN,
-			ConnectionLimit: &c.ConnectionLimit,
-		})
-	}
-	err = r.gcp.CreateServiceAttachment(ctx, name, fwdRule, consumerAcceptList, natSubnetFQNs)
+	fwdRuleFQN := gcp.ForwardingRuleFQN(r.gcp.Project(), r.gcp.Region(), fwdRule)
+	err = r.gcp.CreateServiceAttachment(ctx, name, fwdRuleFQN, toConsumerProjectLimits(consumers), natSubnetFQNs)
 	if err != nil {
 		log.Error(err, "Failed to create the service attachment.")
 		return err
@@ -448,6 +441,18 @@ func getObsoletePortMappings(expected, actual []*gcp.PortMapping) []*gcp.PortMap
 	}
 
 	return diff
+}
+
+func toConsumerProjectLimits(cs []*Consumer) []*computepb.ServiceAttachmentConsumerProjectLimit {
+	consumerAcceptList := make([]*computepb.ServiceAttachmentConsumerProjectLimit, 0, len(cs))
+	for _, c := range cs {
+		consumerAcceptList = append(consumerAcceptList, &computepb.ServiceAttachmentConsumerProjectLimit{
+			ProjectIdOrNum:  c.ProjectIdOrNum,
+			NetworkUrl:      c.NetworkFQN,
+			ConnectionLimit: &c.ConnectionLimit,
+		})
+	}
+	return consumerAcceptList
 }
 
 var providerIDRegexp = regexp.MustCompile(`^gce://([^/]+)/([^/]+)/([^/]+)$`)
