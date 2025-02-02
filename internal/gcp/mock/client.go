@@ -71,7 +71,7 @@ func (mr *MockClientMockRecorder) CreateBackendService(ctx, name, neg any) *gomo
 }
 
 // CreateFirewallPolicies mocks base method.
-func (m *MockClient) CreateFirewallPolicies(ctx context.Context, name string, ports []int32, instances []string) error {
+func (m *MockClient) CreateFirewallPolicies(ctx context.Context, name string, ports map[int32]struct{}, instances []string) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "CreateFirewallPolicies", ctx, name, ports, instances)
 	ret0, _ := ret[0].(error)
@@ -85,7 +85,7 @@ func (mr *MockClientMockRecorder) CreateFirewallPolicies(ctx, name, ports, insta
 }
 
 // CreateForwardingRule mocks base method.
-func (m *MockClient) CreateForwardingRule(ctx context.Context, name, backendSvc string, ip *string, globalAccess *bool, ports []int32) error {
+func (m *MockClient) CreateForwardingRule(ctx context.Context, name, backendSvc string, ip *string, globalAccess *bool, ports map[int32]struct{}) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "CreateForwardingRule", ctx, name, backendSvc, ip, globalAccess, ports)
 	ret0, _ := ret[0].(error)
@@ -231,7 +231,7 @@ func (mr *MockClientMockRecorder) ListEndpoints(ctx, neg any) *gomock.Call {
 }
 
 // UpdateFirewallPolicies mocks base method.
-func (m *MockClient) UpdateFirewallPolicies(ctx context.Context, name string, ports []int32, instances []string) error {
+func (m *MockClient) UpdateFirewallPolicies(ctx context.Context, name string, ports map[int32]struct{}, instances []string) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "UpdateFirewallPolicies", ctx, name, ports, instances)
 	ret0, _ := ret[0].(error)
