@@ -324,10 +324,6 @@ func (c *GCPClient) CreateServiceAttachment(
 	return call(ctx, c.svcAtts.Insert, req)
 }
 
-func (c *GCPClient) ForwardingRuleFQN(name string) string {
-	return "projects/" + c.cfg.Project + "/regions/" + c.cfg.Region + "/forwardingRules/" + name
-}
-
 func firewallRule(ports map[int32]struct{}, instances []string) *computepb.FirewallPolicyRule {
 	allow := "allow"
 	tcp := "tcp"

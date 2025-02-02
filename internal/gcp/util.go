@@ -32,6 +32,18 @@ func FirewallNeedsUpdate(fw *computepb.FirewallPolicy, expectedPorts map[int32]s
 	return false
 }
 
+func ForwardingRuleFQN(project, region, name string) string {
+	return regionFQNBase(project, region) + "/forwardingRules/" + name
+}
+
+func ServiceAttachmentFQN(project, region, name string) string {
+	return regionFQNBase(project, region) + "/serviceAttachments/" + name
+}
+
+func regionFQNBase(project, region string) string {
+	return "projects/" + project + "/regions/" + region
+}
+
 func toSortedStr(is map[int32]struct{}) []string {
 	ss := make([]string, 0, len(is))
 	for p, _ := range is {
