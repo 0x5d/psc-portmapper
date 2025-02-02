@@ -181,7 +181,7 @@ loop:
 	}
 
 	backend := backendName(spec.Prefix)
-	err = r.reconcileBackend(ctx, log, backend)
+	err = r.reconcileBackend(ctx, log, backend, neg)
 	if err != nil {
 		log.Error(err, "Unable to reconcile backend", "name", neg)
 		return reconcile.Result{}, err
@@ -298,7 +298,7 @@ func (r *PortmapReconciler) reconcileNEG(ctx context.Context, log logr.Logger, n
 	return nil
 }
 
-func (r *PortmapReconciler) reconcileBackend(ctx context.Context, log logr.Logger, name string) error {
+func (r *PortmapReconciler) reconcileBackend(ctx context.Context, log logr.Logger, name, neg string) error {
 	_, err := r.gcp.GetBackendService(ctx, name)
 	if err == nil {
 		return nil
@@ -307,7 +307,7 @@ func (r *PortmapReconciler) reconcileBackend(ctx context.Context, log logr.Logge
 		log.Error(err, "Got an unexpected error trying to get the backend.", "name", name)
 		return err
 	}
-	err = r.gcp.CreatePortmapNEG(ctx, name)
+	err = r.gcp.CreateBackendService(ctx, name, neg)
 	if err != nil {
 		log.Error(err, "Failed to create the backend.")
 		return err
