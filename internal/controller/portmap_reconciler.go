@@ -19,16 +19,19 @@ import (
 	"k8s.io/apimachinery/pkg/util/intstr"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 )
 
 const (
-	annotation         = "0x5d.org/psc-portmapper"
+	annotation         = "psc-portmapper.0x5d.org/spec"
 	hostnameAnnotation = "kubernetes.io/hostname"
 
 	managedByLabel = "app.kubernetes.io/managed-by"
 	portmapperApp  = "psc-portmapper"
+
+	finalizer = "psc-portmapper.0x5d.org/finalizer"
 )
 
 type PortmapReconciler struct {
@@ -93,7 +96,12 @@ func (r *PortmapReconciler) Reconcile(ctx context.Context, req reconcile.Request
 	}
 
 	if sts.DeletionTimestamp != nil {
-		// Deal with deletion, set finalizer, etc.
+		err := r.delete(ctx, log, &spec, sts)
+		if err != nil {
+			log.Error(err, "Failed to delete resources.")
+			return reconcile.Result{RequeueAfter: 1 * time.Minute}, err
+		}
+		return reconcile.Result{}, nil
 	}
 
 	ports := map[int32]struct{}{}
@@ -242,6 +250,64 @@ loop:
 	}
 
 	return nodes, nil
+}
+
+func (r *PortmapReconciler) delete(ctx context.Context, log logr.Logger, spec *Spec, sts *appsv1.StatefulSet) error {
+	np := types.NamespacedName{Name: nodeportName(spec.Prefix), Namespace: sts.Namespace}
+	err := r.Delete(ctx, &corev1.Service{ObjectMeta: metav1.ObjectMeta{Name: np.Name, Namespace: np.Namespace}})
+	if err != nil {
+		log.Error(err, "Failed to delete the NodePort service.", "namespace", np.Namespace, "name", np.Name)
+	}
+	deleters := []struct {
+		resource   string
+		deleteFunc func() error
+	}{{
+		"service attachment",
+		func() error {
+			return r.gcp.DeleteServiceAttachment(ctx, svcAttName(spec.Prefix))
+		},
+	}, {
+		"forwarding rule",
+		func() error {
+			return r.gcp.DeleteForwardingRule(ctx, fwdRuleName(spec.Prefix))
+		},
+	}, {
+		"backend",
+		func() error {
+			return r.gcp.DeleteBackendService(ctx, backendName(spec.Prefix))
+		},
+	}, {
+		"NEG",
+		func() error {
+			return r.gcp.DeletePortmapNEG(ctx, negName(spec.Prefix))
+		},
+	}, {
+		"firewall",
+		func() error {
+			return r.gcp.DeleteFirewallPolicies(ctx, firewallName(spec.Prefix))
+		},
+	}}
+	for _, d := range deleters {
+		err = d.deleteFunc()
+		if err == nil {
+			log.Info("Resource deleted.", "type", d.resource)
+			continue
+		}
+		if !errors.Is(err, gcp.ErrNotFound) {
+			log.Error(err, "Failed to delete resource.", "type", d.resource)
+			return err
+		}
+		log.Info("Resource not found, so nothing to delete. Was it removed manually or by another process?", "type", d.resource)
+	}
+
+	if controllerutil.RemoveFinalizer(sts, finalizer) {
+		err := r.Update(ctx, sts)
+		if err != nil {
+			log.Error(err, "Failed to remove finalizer from the STS.", "namespace", sts.Namespace, "name", sts.Name)
+			return err
+		}
+	}
+	return nil
 }
 
 func (r *PortmapReconciler) reconcileNodePortService(
