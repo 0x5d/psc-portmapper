@@ -34,6 +34,7 @@ type Client interface {
 	// NEGs API
 	GetNEG(ctx context.Context, name string) (*computepb.NetworkEndpointGroup, error)
 	CreatePortmapNEG(ctx context.Context, name string) error
+	DeletePortmapNEG(ctx context.Context, name string) error
 	ListEndpoints(ctx context.Context, neg string) ([]*PortMapping, error)
 	AttachEndpoints(ctx context.Context, neg string, mappings []*PortMapping) error
 	DetachEndpoints(ctx context.Context, neg string, mappings []*PortMapping) error
@@ -41,15 +42,19 @@ type Client interface {
 	GetFirewallPolicies(ctx context.Context, name string) (*computepb.FirewallPolicy, error)
 	CreateFirewallPolicies(ctx context.Context, name string, ports map[int32]struct{}, instances []string) error
 	UpdateFirewallPolicies(ctx context.Context, name string, ports map[int32]struct{}, instances []string) error
+	DeleteFirewallPolicies(ctx context.Context, name string) error
 	// Backend Services API
 	GetBackendService(ctx context.Context, name string) (*computepb.BackendService, error)
 	CreateBackendService(ctx context.Context, name string, neg string) error
+	DeleteBackendService(ctx context.Context, name string) error
 	// Forwarding Rules API
 	GetForwardingRule(ctx context.Context, name string) (*computepb.ForwardingRule, error)
 	CreateForwardingRule(ctx context.Context, name, backendSvc string, ip *string, globalAccess *bool, ports map[int32]struct{}) error
+	DeleteForwardingRule(ctx context.Context, name string) error
 	// Service Attachments API
 	GetServiceAttachment(ctx context.Context, name string) (*computepb.ServiceAttachment, error)
 	CreateServiceAttachment(ctx context.Context, name, fwdRuleFQN string, consumers []*computepb.ServiceAttachmentConsumerProjectLimit, natSubnetFQNs []string) error
+	DeleteServiceAttachment(ctx context.Context, name string) error
 }
 
 type GCPClient struct {
@@ -123,6 +128,20 @@ func (c *GCPClient) CreatePortmapNEG(ctx context.Context, name string) error {
 		},
 	}
 	return call(ctx, c.negs.Insert, req)
+}
+
+func (c *GCPClient) DeletePortmapNEG(
+	ctx context.Context,
+	name string,
+) error {
+	reqID := uuid.New().String()
+	req := &computepb.DeleteRegionNetworkEndpointGroupRequest{
+		RequestId:            &reqID,
+		Project:              c.cfg.Project,
+		Region:               c.cfg.Region,
+		NetworkEndpointGroup: name,
+	}
+	return call(ctx, c.negs.Delete, req)
 }
 
 func (c *GCPClient) ListEndpoints(ctx context.Context, neg string) ([]*PortMapping, error) {
@@ -232,6 +251,20 @@ func (c *GCPClient) UpdateFirewallPolicies(ctx context.Context, name string, por
 	return call(ctx, c.firewalls.Patch, req)
 }
 
+func (c *GCPClient) DeleteFirewallPolicies(
+	ctx context.Context,
+	name string,
+) error {
+	reqID := uuid.New().String()
+	req := &computepb.DeleteRegionNetworkFirewallPolicyRequest{
+		RequestId:      &reqID,
+		Project:        c.cfg.Project,
+		Region:         c.cfg.Region,
+		FirewallPolicy: name,
+	}
+	return call(ctx, c.firewalls.Delete, req)
+}
+
 func (c *GCPClient) GetBackendService(ctx context.Context, name string) (*computepb.BackendService, error) {
 	req := &computepb.GetRegionBackendServiceRequest{
 		Project:        c.cfg.Project,
@@ -260,6 +293,20 @@ func (c *GCPClient) CreateBackendService(ctx context.Context, name string, neg s
 		},
 	}
 	return call(ctx, c.backendSvcs.Insert, req)
+}
+
+func (c *GCPClient) DeleteBackendService(
+	ctx context.Context,
+	name string,
+) error {
+	reqID := uuid.New().String()
+	req := &computepb.DeleteRegionBackendServiceRequest{
+		RequestId:      &reqID,
+		Project:        c.cfg.Project,
+		Region:         c.cfg.Region,
+		BackendService: name,
+	}
+	return call(ctx, c.backendSvcs.Delete, req)
 }
 
 func (c *GCPClient) GetForwardingRule(ctx context.Context, name string) (*computepb.ForwardingRule, error) {
@@ -293,6 +340,20 @@ func (c *GCPClient) CreateForwardingRule(ctx context.Context, name, backendSvc s
 	return call(ctx, c.fwdRules.Insert, req)
 }
 
+func (c *GCPClient) DeleteForwardingRule(
+	ctx context.Context,
+	name string,
+) error {
+	reqID := uuid.New().String()
+	req := &computepb.DeleteForwardingRuleRequest{
+		RequestId:      &reqID,
+		Project:        c.cfg.Project,
+		Region:         c.cfg.Region,
+		ForwardingRule: name,
+	}
+	return call(ctx, c.fwdRules.Delete, req)
+}
+
 func (c *GCPClient) GetServiceAttachment(ctx context.Context, name string) (*computepb.ServiceAttachment, error) {
 	req := &computepb.GetServiceAttachmentRequest{
 		Project:           c.cfg.Project,
@@ -322,6 +383,20 @@ func (c *GCPClient) CreateServiceAttachment(
 		},
 	}
 	return call(ctx, c.svcAtts.Insert, req)
+}
+
+func (c *GCPClient) DeleteServiceAttachment(
+	ctx context.Context,
+	name string,
+) error {
+	reqID := uuid.New().String()
+	req := &computepb.DeleteServiceAttachmentRequest{
+		RequestId:         &reqID,
+		Project:           c.cfg.Project,
+		Region:            c.cfg.Region,
+		ServiceAttachment: name,
+	}
+	return call(ctx, c.svcAtts.Delete, req)
 }
 
 func firewallRule(ports map[int32]struct{}, instances []string) *computepb.FirewallPolicyRule {
