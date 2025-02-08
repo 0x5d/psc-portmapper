@@ -126,6 +126,76 @@ func (mr *MockClientMockRecorder) CreateServiceAttachment(ctx, name, fwdRuleFQN,
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateServiceAttachment", reflect.TypeOf((*MockClient)(nil).CreateServiceAttachment), ctx, name, fwdRuleFQN, consumers, natSubnetFQNs)
 }
 
+// DeleteBackendService mocks base method.
+func (m *MockClient) DeleteBackendService(ctx context.Context, name string) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DeleteBackendService", ctx, name)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// DeleteBackendService indicates an expected call of DeleteBackendService.
+func (mr *MockClientMockRecorder) DeleteBackendService(ctx, name any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteBackendService", reflect.TypeOf((*MockClient)(nil).DeleteBackendService), ctx, name)
+}
+
+// DeleteFirewallPolicies mocks base method.
+func (m *MockClient) DeleteFirewallPolicies(ctx context.Context, name string) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DeleteFirewallPolicies", ctx, name)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// DeleteFirewallPolicies indicates an expected call of DeleteFirewallPolicies.
+func (mr *MockClientMockRecorder) DeleteFirewallPolicies(ctx, name any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteFirewallPolicies", reflect.TypeOf((*MockClient)(nil).DeleteFirewallPolicies), ctx, name)
+}
+
+// DeleteForwardingRule mocks base method.
+func (m *MockClient) DeleteForwardingRule(ctx context.Context, name string) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DeleteForwardingRule", ctx, name)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// DeleteForwardingRule indicates an expected call of DeleteForwardingRule.
+func (mr *MockClientMockRecorder) DeleteForwardingRule(ctx, name any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteForwardingRule", reflect.TypeOf((*MockClient)(nil).DeleteForwardingRule), ctx, name)
+}
+
+// DeletePortmapNEG mocks base method.
+func (m *MockClient) DeletePortmapNEG(ctx context.Context, name string) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DeletePortmapNEG", ctx, name)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// DeletePortmapNEG indicates an expected call of DeletePortmapNEG.
+func (mr *MockClientMockRecorder) DeletePortmapNEG(ctx, name any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeletePortmapNEG", reflect.TypeOf((*MockClient)(nil).DeletePortmapNEG), ctx, name)
+}
+
+// DeleteServiceAttachment mocks base method.
+func (m *MockClient) DeleteServiceAttachment(ctx context.Context, name string) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DeleteServiceAttachment", ctx, name)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// DeleteServiceAttachment indicates an expected call of DeleteServiceAttachment.
+func (mr *MockClientMockRecorder) DeleteServiceAttachment(ctx, name any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteServiceAttachment", reflect.TypeOf((*MockClient)(nil).DeleteServiceAttachment), ctx, name)
+}
+
 // DetachEndpoints mocks base method.
 func (m *MockClient) DetachEndpoints(ctx context.Context, neg string, mappings []*gcp.PortMapping) error {
 	m.ctrl.T.Helper()
