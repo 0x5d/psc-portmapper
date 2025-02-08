@@ -109,9 +109,94 @@ func (r *PortmapReconciler) Reconcile(ctx context.Context, req reconcile.Request
 	if numPods == 0 {
 		log.Info("No pods matched the STS' labels. Are its replicas set to 0?")
 	}
+
+	nodes, err := r.getNodes(ctx, log, pods.Items)
+	if err != nil {
+		log.Error(err, "Failed to get the nodes the STS pods are scheduled on.")
+		return reconcile.Result{RequeueAfter: 1 * time.Minute}, err
+	}
+
+	hostnames := make([]string, 0, numPods)
+	for _, n := range nodes {
+		hostnames = append(hostnames, n.ObjectMeta.Annotations[hostnameAnnotation])
+	}
+
+	mappings, err := r.getPortMappings(log, &spec, nodes, pods.Items)
+
+	reconcilers := []struct {
+		resource      string
+		reconcileFunc func() error
+	}{{
+		"firewall",
+		func() error {
+			return r.reconcileFirewall(ctx, log, firewallName(spec.Prefix), ports, hostnames)
+		},
+	}, {
+		"NEG",
+		func() error {
+			return r.reconcileNEG(ctx, log, negName(spec.Prefix))
+		},
+	}, {
+		"backend",
+		func() error {
+			return r.reconcileBackend(ctx, log, backendName(spec.Prefix), negName(spec.Prefix))
+		},
+	}, {
+		"endpoints",
+		func() error {
+			return r.reconcileEndpoints(ctx, log, negName(spec.Prefix), mappings)
+		},
+	}, {
+		"forwarding rule",
+		func() error {
+			return r.reconcileForwardingRule(ctx, log, fwdRuleName(spec.Prefix), backendName(spec.Prefix), ports, spec.IP, spec.GlobalAccess)
+		},
+	}, {
+		"service attachment",
+		func() error {
+			return r.reconcileServiceAttachment(ctx, log, svcAttName(spec.Prefix), fwdRuleName(spec.Prefix), spec.ConsumerAcceptList, spec.NatSubnetFQNs)
+		},
+	}}
+
+	for _, r := range reconcilers {
+		err = r.reconcileFunc()
+		if err != nil {
+			log.Error(err, "Failed to reconcile "+r.resource)
+			return reconcile.Result{}, err
+		}
+	}
+	return reconcile.Result{}, nil
+}
+
+func (r *PortmapReconciler) getPortMappings(log logr.Logger, spec *Spec, nodes map[string]*corev1.Node, pods []corev1.Pod) ([]*gcp.PortMapping, error) {
+	numPods := len(pods)
+	// Reconcile the resources.
+	mappings := make([]*gcp.PortMapping, 0, numPods)
+	for i := 0; i < numPods; i++ {
+		for _, p := range spec.NodePorts {
+			port := p.StartingPort + int32(i)
+			nodeName := pods[i].Spec.NodeName
+			node := nodes[nodeName]
+			instance, err := fqInstaceName(node.Spec.ProviderID)
+			if err != nil {
+				log.Error(err, "Failed to get the fully qualified instance name for the node.", "node", nodeName)
+				return nil, err
+			}
+			mappings = append(mappings, &gcp.PortMapping{
+				Port:         port,
+				Instance:     instance,
+				InstancePort: p.NodePort,
+			})
+		}
+	}
+	return mappings, nil
+}
+
+func (r *PortmapReconciler) getNodes(ctx context.Context, log logr.Logger, pods []corev1.Pod) (map[string]*corev1.Node, error) {
+	numPods := len(pods)
 	nodesCh := make(chan *corev1.Node, numPods)
 	wg := errgroup.Group{}
-	for _, p := range pods.Items {
+	for _, p := range pods {
 		p := p
 		nodeName := p.Spec.NodeName
 		if nodeName == "" {
@@ -128,13 +213,13 @@ func (r *PortmapReconciler) Reconcile(ctx context.Context, req reconcile.Request
 			return nil
 		})
 	}
-	err = wg.Wait()
+	err := wg.Wait()
 	close(nodesCh)
 	if err != nil {
 		log.Error(err, "Failed to get the STS' pods' nodes.")
+		return nil, err
 	}
-	nodes := map[string]*corev1.Node{}
-	hostnames := make([]string, 0, numPods)
+	nodes := make(map[string]*corev1.Node, numPods)
 
 loop:
 	for {
@@ -144,73 +229,11 @@ loop:
 				break loop
 			}
 			nodes[node.ObjectMeta.Name] = node
-			hostnames = append(hostnames, node.ObjectMeta.Annotations[hostnameAnnotation])
 		default:
 		}
 	}
 
-	// Reconcile the resources.
-	mappings := make([]*gcp.PortMapping, 0, numPods)
-	for i := 0; i < numPods; i++ {
-		for _, p := range spec.NodePorts {
-			port := p.StartingPort + int32(i)
-			nodeName := pods.Items[i].Spec.NodeName
-			node := nodes[nodeName]
-			instance, err := fqInstaceName(node.Spec.ProviderID)
-			if err != nil {
-				log.Error(err, "Failed to get the fully qualified instance name for the node.", "node", nodeName)
-				return reconcile.Result{}, err
-			}
-			mappings = append(mappings, &gcp.PortMapping{
-				Port:         port,
-				Instance:     instance,
-				InstancePort: p.NodePort,
-			})
-		}
-	}
-
-	fw := firewallName(spec.Prefix)
-	err = r.reconcileFirewall(ctx, log, fw, ports, hostnames)
-	if err != nil {
-		log.Error(err, "Unable to reconcile firewall", "name", fw)
-		return reconcile.Result{}, err
-	}
-
-	neg := negName(spec.Prefix)
-	err = r.reconcileNEG(ctx, log, neg)
-	if err != nil {
-		log.Error(err, "Unable to reconcile NEG", "name", neg)
-		return reconcile.Result{}, err
-	}
-
-	backend := backendName(spec.Prefix)
-	err = r.reconcileBackend(ctx, log, backend, neg)
-	if err != nil {
-		log.Error(err, "Unable to reconcile backend", "name", neg)
-		return reconcile.Result{}, err
-	}
-
-	err = r.reconcileEndpoints(ctx, log, neg, mappings)
-	if err != nil {
-		log.Error(err, "Unable to reconcile backend", "name", neg)
-		return reconcile.Result{}, err
-	}
-
-	fwdRule := fwdRuleName(spec.Prefix)
-	err = r.reconcileForwardingRule(ctx, log, fwdRule, backend, ports, spec.IP, spec.GlobalAccess)
-	if err != nil {
-		log.Error(err, "Unable to reconcile forwarding rule", "name", neg)
-		return reconcile.Result{}, err
-	}
-
-	svcAtt := svcAttName(spec.Prefix)
-	err = r.reconcileServiceAttachment(ctx, log, svcAtt, fwdRule, spec.ConsumerAcceptList, spec.NatSubnetFQNs)
-	if err != nil {
-		log.Error(err, "Unable to reconcile service attachment", "name", neg)
-		return reconcile.Result{}, err
-	}
-
-	return reconcile.Result{}, nil
+	return nodes, nil
 }
 
 func (r *PortmapReconciler) reconcileNodePortService(
