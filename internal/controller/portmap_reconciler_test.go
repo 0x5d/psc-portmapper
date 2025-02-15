@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"strconv"
 	"testing"
+	"time"
 
 	"cloud.google.com/go/compute/apiv1/computepb"
 	"github.com/0x5d/psc-portmapper/internal/gcp"
@@ -683,6 +684,181 @@ func TestReconcile(t *testing.T) {
 				},
 			}
 			res, err := r.Reconcile(ctx, req)
+
+			if tt.expectedErrMsg != "" {
+				require.EqualError(t, err, tt.expectedErrMsg)
+			} else {
+				require.NoError(t, err)
+			}
+
+			require.Equal(t, tt.expectedRes, res)
+			if tt.assert != nil {
+				tt.assert(t, c, initState)
+			}
+		})
+	}
+}
+
+func TestDelete(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	p := "prefix-"
+	fw := firewallName(p)
+	neg := negName(p)
+	be := backendName(p)
+	fwdRule := fwdRuleName(p)
+	svcAtt := svcAttName(p)
+	mctx := gomock.Any()
+
+	expectCreation := func(m *mock.MockClientMockRecorder, s *state) {
+		fwdRuleFQN := gcp.ForwardingRuleFQN(s.project, s.region, fwdRule)
+		ports := map[int32]struct{}{}
+		for _, port := range s.spec.NodePorts {
+			ports[port.NodePort] = struct{}{}
+		}
+		instances := make([]string, 0, len(s.nodes.Items))
+		for _, node := range s.nodes.Items {
+			instances = append(instances, node.Name)
+		}
+		consumers := toConsumerProjectLimits(s.spec.ConsumerAcceptList)
+
+		notFound(m.GetFirewallPolicies(mctx, fw))
+		noErr(m.CreateFirewallPolicies(mctx, fw, ports, gomock.InAnyOrder(instances)))
+		notFound(m.GetNEG(mctx, neg))
+		noErr(m.CreatePortmapNEG(mctx, neg))
+		notFound(m.GetBackendService(mctx, be))
+		noErr(m.CreateBackendService(mctx, be, neg))
+		once(m.ListEndpoints(mctx, neg)).Return([]*gcp.PortMapping{}, nil)
+		noErr(m.AttachEndpoints(mctx, neg, s.portMappings()))
+		notFound(m.GetForwardingRule(mctx, fwdRule))
+		noErr(m.CreateForwardingRule(mctx, fwdRule, be, nil, nil, ports))
+		notFound(m.GetServiceAttachment(mctx, svcAtt))
+		noErr(m.CreateServiceAttachment(mctx, svcAtt, fwdRuleFQN, consumers, s.spec.NatSubnetFQNs))
+	}
+
+	tests := []struct {
+		name           string
+		state          func() *state
+		setup          func(t *testing.T, mock *mock.MockClient, s *state)
+		assert         func(t *testing.T, c client.Client, s *state)
+		expectedRes    reconcile.Result
+		expectedErrMsg string
+	}{{
+		name: "Deletes everything",
+		setup: func(t *testing.T, mock *mock.MockClient, s *state) {
+			m := mock.EXPECT()
+			noErr(m.DeleteServiceAttachment(mctx, svcAtt))
+			noErr(m.DeleteForwardingRule(mctx, fwdRule))
+			noErr(m.DeleteBackendService(mctx, be))
+			noErr(m.DeletePortmapNEG(mctx, neg))
+			noErr(m.DeleteFirewallPolicies(mctx, fw))
+		},
+		assert: func(t *testing.T, c client.Client, s *state) {
+			// Check that the nodeport was deleted too.
+			nodeport := &corev1.Service{}
+			err := c.Get(ctx, types.NamespacedName{Namespace: "default", Name: nodeportName("prefix-")}, nodeport)
+			require.Error(t, err)
+		},
+		expectedRes: reconcile.Result{},
+	}, {
+		name: "Skips errors if the resources have been deleted",
+		setup: func(t *testing.T, mock *mock.MockClient, s *state) {
+			m := mock.EXPECT()
+			callErr(m.DeleteServiceAttachment(mctx, svcAtt), gcp.ErrNotFound)
+			callErr(m.DeleteForwardingRule(mctx, fwdRule), gcp.ErrNotFound)
+			callErr(m.DeleteBackendService(mctx, be), gcp.ErrNotFound)
+			callErr(m.DeletePortmapNEG(mctx, neg), gcp.ErrNotFound)
+			callErr(m.DeleteFirewallPolicies(mctx, fw), gcp.ErrNotFound)
+		},
+		expectedRes: reconcile.Result{},
+	}, {
+		name: "Returns an error if it can't delete the service attachment",
+		setup: func(t *testing.T, mock *mock.MockClient, s *state) {
+			m := mock.EXPECT()
+			callErr(m.DeleteServiceAttachment(mctx, svcAtt), errors.New("can't delete service attachment"))
+		},
+		expectedRes:    reconcile.Result{RequeueAfter: 1 * time.Minute},
+		expectedErrMsg: "can't delete service attachment",
+	}, {
+		name: "Returns an error if it can't delete the forwarding rule",
+		setup: func(t *testing.T, mock *mock.MockClient, s *state) {
+			m := mock.EXPECT()
+			noErr(m.DeleteServiceAttachment(mctx, svcAtt))
+			callErr(m.DeleteForwardingRule(mctx, fwdRule), errors.New("can't delete forwarding rule"))
+		},
+		expectedRes:    reconcile.Result{RequeueAfter: 1 * time.Minute},
+		expectedErrMsg: "can't delete forwarding rule",
+	}, {
+		name: "Returns an error if it can't delete the backend service",
+		setup: func(t *testing.T, mock *mock.MockClient, s *state) {
+			m := mock.EXPECT()
+			noErr(m.DeleteServiceAttachment(mctx, svcAtt))
+			noErr(m.DeleteForwardingRule(mctx, fwdRule))
+			callErr(m.DeleteBackendService(mctx, be), errors.New("can't delete backend service"))
+		},
+		expectedRes:    reconcile.Result{RequeueAfter: 1 * time.Minute},
+		expectedErrMsg: "can't delete backend service",
+	}, {
+		name: "Returns an error if it can't delete the NEG",
+		setup: func(t *testing.T, mock *mock.MockClient, s *state) {
+			m := mock.EXPECT()
+			noErr(m.DeleteServiceAttachment(mctx, svcAtt))
+			noErr(m.DeleteForwardingRule(mctx, fwdRule))
+			noErr(m.DeleteBackendService(mctx, be))
+			callErr(m.DeletePortmapNEG(mctx, neg), errors.New("can't delete NEG"))
+		},
+		expectedRes:    reconcile.Result{RequeueAfter: 1 * time.Minute},
+		expectedErrMsg: "can't delete NEG",
+	}, {
+		name: "Returns an error if it can't delete the firewall policies",
+		setup: func(t *testing.T, mock *mock.MockClient, s *state) {
+			m := mock.EXPECT()
+			noErr(m.DeleteServiceAttachment(mctx, svcAtt))
+			noErr(m.DeleteForwardingRule(mctx, fwdRule))
+			noErr(m.DeleteBackendService(mctx, be))
+			noErr(m.DeletePortmapNEG(mctx, neg))
+			callErr(m.DeleteFirewallPolicies(mctx, fw), errors.New("can't delete firewall policies"))
+		},
+		expectedRes:    reconcile.Result{RequeueAfter: 1 * time.Minute},
+		expectedErrMsg: "can't delete firewall policies",
+	}}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			initState := initialState()
+			if tt.state != nil {
+				initState = tt.state()
+			}
+			var c client.Client = fake.NewClientBuilder().
+				WithLists(initState.nodes, initState.pods).
+				WithObjects(initState.sts).
+				Build()
+
+			ctrl := gomock.NewController(t)
+
+			gcpClient := mock.NewMockClient(ctrl)
+
+			gcpClient.EXPECT().Project().AnyTimes().Return(initState.project)
+			gcpClient.EXPECT().Region().AnyTimes().Return(initState.region)
+			expectCreation(gcpClient.EXPECT(), initState)
+
+			r := New(c, gcpClient)
+			req := reconcile.Request{
+				NamespacedName: client.ObjectKey{
+					Namespace: initState.sts.Namespace,
+					Name:      initState.sts.Name,
+				},
+			}
+			res, err := r.Reconcile(ctx, req)
+			require.NoError(t, err)
+
+			tt.setup(t, gcpClient, initState)
+
+			// Delete the sts so that the reconcile loop will exercise the delete path.
+			require.NoError(t, c.Delete(ctx, initState.sts))
+			res, err = r.Reconcile(ctx, req)
 
 			if tt.expectedErrMsg != "" {
 				require.EqualError(t, err, tt.expectedErrMsg)
