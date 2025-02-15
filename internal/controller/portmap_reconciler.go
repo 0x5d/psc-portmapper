@@ -71,6 +71,14 @@ func (r *PortmapReconciler) Reconcile(ctx context.Context, req reconcile.Request
 		return reconcile.Result{}, nil
 	}
 
+	if controllerutil.AddFinalizer(sts, finalizer) {
+		err := r.Update(ctx, sts)
+		if err != nil {
+			log.Error(err, "Failed to add finalizer to the STS.", "namespace", sts.Namespace, "name", sts.Name)
+			return reconcile.Result{}, err
+		}
+	}
+
 	var spec Spec
 	err = json.Unmarshal([]byte(a), &spec)
 	if err != nil {
