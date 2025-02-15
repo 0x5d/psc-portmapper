@@ -429,17 +429,17 @@ func callOpts() []gax.CallOption {
 
 func get[T any, U any, F func(context.Context, T, ...gax.CallOption) (U, error)](ctx context.Context, f F, req T) (U, error) {
 	u, err := f(ctx, req, callOpts()...)
-	if err != nil {
-		var ae *apierror.APIError
-		if errors.As(err, &ae) {
-			if ae.HTTPCode() != http.StatusNotFound {
-				return u, ErrNotFound
-			}
-			return u, &ClientError{msg: ae.Error(), status: ae.HTTPCode()}
-		}
-		return u, &ClientError{msg: err.Error(), status: -1}
+	if err == nil {
+		return u, nil
 	}
-	return u, nil
+	var ae *apierror.APIError
+	if errors.As(err, &ae) {
+		if ae.HTTPCode() != http.StatusNotFound {
+			return u, ErrNotFound
+		}
+		return u, &ClientError{msg: ae.Error(), status: ae.HTTPCode()}
+	}
+	return u, &ClientError{msg: err.Error(), status: -1}
 }
 
 func call[T any, F func(context.Context, T, ...gax.CallOption) (*compute.Operation, error)](ctx context.Context, f F, req T) error {
@@ -447,5 +447,16 @@ func call[T any, F func(context.Context, T, ...gax.CallOption) (*compute.Operati
 	if err != nil {
 		return err
 	}
-	return op.Wait(ctx, callOpts()...)
+	err = op.Wait(ctx, callOpts()...)
+	if err == nil {
+		return nil
+	}
+	var ae *apierror.APIError
+	if errors.As(err, &ae) {
+		if ae.HTTPCode() != http.StatusNotFound {
+			return ErrNotFound
+		}
+		return &ClientError{msg: ae.Error(), status: ae.HTTPCode()}
+	}
+	return &ClientError{msg: err.Error(), status: -1}
 }
