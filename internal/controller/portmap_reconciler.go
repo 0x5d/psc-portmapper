@@ -138,6 +138,10 @@ func (r *PortmapReconciler) Reconcile(ctx context.Context, req reconcile.Request
 	}
 
 	mappings, err := r.getPortMappings(log, &spec, nodes, pods.Items)
+	if err != nil {
+		log.Error(err, "Failed to get the port mappings.")
+		return reconcile.Result{RequeueAfter: 1 * time.Minute}, err
+	}
 
 	reconcilers := []struct {
 		resource      string
