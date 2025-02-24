@@ -143,48 +143,13 @@ func (r *PortmapReconciler) Reconcile(ctx context.Context, req reconcile.Request
 		return reconcile.Result{RequeueAfter: 1 * time.Minute}, err
 	}
 
-	reconcilers := []struct {
-		resource      string
-		reconcileFunc func() error
-	}{{
-		"firewall",
-		func() error {
-			return r.reconcileFirewall(ctx, log, firewallName(spec.Prefix), ports, hostnames)
-		},
-	}, {
-		"NEG",
-		func() error {
-			return r.reconcileNEG(ctx, log, negName(spec.Prefix))
-		},
-	}, {
-		"backend",
-		func() error {
-			return r.reconcileBackend(ctx, log, backendName(spec.Prefix), negName(spec.Prefix))
-		},
-	}, {
-		"endpoints",
-		func() error {
-			return r.reconcileEndpoints(ctx, log, negName(spec.Prefix), mappings)
-		},
-	}, {
-		"forwarding rule",
-		func() error {
-			return r.reconcileForwardingRule(ctx, log, fwdRuleName(spec.Prefix), backendName(spec.Prefix), ports, spec.IP, spec.GlobalAccess)
-		},
-	}, {
-		"service attachment",
-		func() error {
-			return r.reconcileServiceAttachment(ctx, log, svcAttName(spec.Prefix), fwdRuleName(spec.Prefix), spec.ConsumerAcceptList, spec.NatSubnetFQNs)
-		},
-	}}
-
-	for _, r := range reconcilers {
-		err = r.reconcileFunc()
-		if err != nil {
-			log.Error(err, "Failed to reconcile "+r.resource)
-			return reconcile.Result{}, err
-		}
+	err = r.reconcile(ctx, log, &spec, ports, mappings, hostnames)
+	if err != nil {
+		log.Error(err, "Failed to reconcile the resources.")
+		return reconcile.Result{RequeueAfter: 1 * time.Minute}, err
 	}
+
+	log.Info("Reconciliation successful.")
 	return reconcile.Result{}, nil
 }
 
@@ -254,6 +219,51 @@ loop:
 	}
 
 	return nodes, nil
+}
+
+func (r *PortmapReconciler) reconcile(ctx context.Context, log logr.Logger, spec *Spec, ports map[int32]struct{}, mappings []*gcp.PortMapping, hostnames []string) error {
+	reconcilers := []struct {
+		resource      string
+		reconcileFunc func() error
+	}{{
+		"firewall",
+		func() error {
+			return r.reconcileFirewall(ctx, log, firewallName(spec.Prefix), ports, hostnames)
+		},
+	}, {
+		"NEG",
+		func() error {
+			return r.reconcileNEG(ctx, log, negName(spec.Prefix))
+		},
+	}, {
+		"backend",
+		func() error {
+			return r.reconcileBackend(ctx, log, backendName(spec.Prefix), negName(spec.Prefix))
+		},
+	}, {
+		"endpoints",
+		func() error {
+			return r.reconcileEndpoints(ctx, log, negName(spec.Prefix), mappings)
+		},
+	}, {
+		"forwarding rule",
+		func() error {
+			return r.reconcileForwardingRule(ctx, log, fwdRuleName(spec.Prefix), backendName(spec.Prefix), ports, spec.IP, spec.GlobalAccess)
+		},
+	}, {
+		"service attachment",
+		func() error {
+			return r.reconcileServiceAttachment(ctx, log, svcAttName(spec.Prefix), fwdRuleName(spec.Prefix), spec.ConsumerAcceptList, spec.NatSubnetFQNs)
+		},
+	}}
+	for _, r := range reconcilers {
+		err := r.reconcileFunc()
+		if err != nil {
+			log.Error(err, "Failed to reconcile "+r.resource)
+			return err
+		}
+	}
+	return nil
 }
 
 func (r *PortmapReconciler) delete(ctx context.Context, log logr.Logger, spec *Spec, sts *appsv1.StatefulSet) error {
