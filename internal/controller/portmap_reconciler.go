@@ -32,6 +32,8 @@ const (
 	portmapperApp  = "psc-portmapper"
 
 	finalizer = "psc-portmapper.0x5d.org/finalizer"
+
+	requeueDelay = time.Minute
 )
 
 type PortmapReconciler struct {
@@ -86,20 +88,20 @@ func (r *PortmapReconciler) Reconcile(ctx context.Context, req reconcile.Request
 	err = json.Unmarshal([]byte(a), &spec)
 	if err != nil {
 		log.Error(err, "Couldn't decode the spec from the annotation.", "value", a)
-		return reconcile.Result{RequeueAfter: 1 * time.Minute}, err
+		return reconcile.Result{RequeueAfter: requeueDelay}, err
 	}
 
 	err = validateSpec(log, &spec)
 	if err != nil {
 		log.Error(err, "Invalid spec")
-		return reconcile.Result{RequeueAfter: 1 * time.Minute}, err
+		return reconcile.Result{RequeueAfter: requeueDelay}, err
 	}
 
 	if sts.DeletionTimestamp != nil {
 		err := r.delete(ctx, log, &spec, sts)
 		if err != nil {
 			log.Error(err, "Failed to delete resources.")
-			return reconcile.Result{RequeueAfter: 1 * time.Minute}, err
+			return reconcile.Result{RequeueAfter: requeueDelay}, err
 		}
 		return reconcile.Result{}, nil
 	}
@@ -119,7 +121,7 @@ func (r *PortmapReconciler) Reconcile(ctx context.Context, req reconcile.Request
 	err = r.List(ctx, &pods, client.MatchingLabels(sts.Spec.Selector.MatchLabels))
 	if err != nil {
 		log.Error(err, "Failed to list pods matching the STS' label.", "matchLabels", sts.Spec.Selector.MatchLabels)
-		return reconcile.Result{RequeueAfter: 1 * time.Minute}, err
+		return reconcile.Result{RequeueAfter: requeueDelay}, err
 	}
 	numPods := len(pods.Items)
 	if numPods == 0 {
@@ -129,7 +131,7 @@ func (r *PortmapReconciler) Reconcile(ctx context.Context, req reconcile.Request
 	nodes, err := r.getNodes(ctx, log, pods.Items)
 	if err != nil {
 		log.Error(err, "Failed to get the nodes the STS pods are scheduled on.")
-		return reconcile.Result{RequeueAfter: 1 * time.Minute}, err
+		return reconcile.Result{RequeueAfter: requeueDelay}, err
 	}
 
 	hostnames := make([]string, 0, numPods)
@@ -140,13 +142,13 @@ func (r *PortmapReconciler) Reconcile(ctx context.Context, req reconcile.Request
 	mappings, err := r.getPortMappings(log, &spec, nodes, pods.Items)
 	if err != nil {
 		log.Error(err, "Failed to get the port mappings.")
-		return reconcile.Result{RequeueAfter: 1 * time.Minute}, err
+		return reconcile.Result{RequeueAfter: requeueDelay}, err
 	}
 
 	err = r.reconcile(ctx, log, &spec, ports, mappings, hostnames)
 	if err != nil {
 		log.Error(err, "Failed to reconcile the resources.")
-		return reconcile.Result{RequeueAfter: 1 * time.Minute}, err
+		return reconcile.Result{RequeueAfter: requeueDelay}, err
 	}
 
 	log.Info("Reconciliation successful.")

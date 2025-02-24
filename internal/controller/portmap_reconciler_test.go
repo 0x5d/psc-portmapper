@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"strconv"
 	"testing"
-	"time"
 
 	"cloud.google.com/go/compute/apiv1/computepb"
 	"github.com/0x5d/psc-portmapper/internal/gcp"
@@ -243,6 +242,7 @@ func TestReconcile(t *testing.T) {
 		setup: func(t *testing.T, mock *mock.MockClient, s *state) {
 			getErr(mock.EXPECT().GetFirewallPolicies(mctx, fw), errors.New("can't get firewall"))
 		},
+		expectedRes:    reconcile.Result{RequeueAfter: requeueDelay},
 		expectedErrMsg: "can't get firewall",
 	}, {
 		name: "Fails if it can't create the firewall",
@@ -259,6 +259,7 @@ func TestReconcile(t *testing.T) {
 			notFound(m.GetFirewallPolicies(mctx, fw))
 			callErr(m.CreateFirewallPolicies(mctx, fw, ports, gomock.InAnyOrder(instances)), errors.New("can't create firewall"))
 		},
+		expectedRes:    reconcile.Result{RequeueAfter: requeueDelay},
 		expectedErrMsg: "can't create firewall",
 	}, {
 		name: "Fails if it can't get the neg",
@@ -276,6 +277,7 @@ func TestReconcile(t *testing.T) {
 			noErr(m.CreateFirewallPolicies(mctx, fw, ports, gomock.InAnyOrder(instances)))
 			getErr(m.GetNEG(mctx, neg), errors.New("can't get NEG"))
 		},
+		expectedRes:    reconcile.Result{RequeueAfter: requeueDelay},
 		expectedErrMsg: "can't get NEG",
 	}, {
 		name: "Fails if it can't create the neg",
@@ -294,6 +296,7 @@ func TestReconcile(t *testing.T) {
 			notFound(m.GetNEG(mctx, neg))
 			once(m.CreatePortmapNEG(mctx, neg)).Return(errors.New("can't create NEG"))
 		},
+		expectedRes:    reconcile.Result{RequeueAfter: requeueDelay},
 		expectedErrMsg: "can't create NEG",
 	}, {
 		name: "Fails if it can't get the backend",
@@ -313,6 +316,7 @@ func TestReconcile(t *testing.T) {
 			noErr(m.CreatePortmapNEG(mctx, neg))
 			getErr(m.GetBackendService(mctx, be), errors.New("can't get backend"))
 		},
+		expectedRes:    reconcile.Result{RequeueAfter: requeueDelay},
 		expectedErrMsg: "can't get backend",
 	}, {
 		name: "Fails if it can't create the backend",
@@ -333,6 +337,7 @@ func TestReconcile(t *testing.T) {
 			notFound(m.GetBackendService(mctx, be))
 			callErr(m.CreateBackendService(mctx, be, neg), errors.New("can't create backend"))
 		},
+		expectedRes:    reconcile.Result{RequeueAfter: requeueDelay},
 		expectedErrMsg: "can't create backend",
 	}, {
 		name: "Fails if it can't list the endpoints",
@@ -354,6 +359,7 @@ func TestReconcile(t *testing.T) {
 			noErr(m.CreateBackendService(mctx, be, neg))
 			once(m.ListEndpoints(mctx, neg)).Return(nil, errors.New("can't list endpoints"))
 		},
+		expectedRes:    reconcile.Result{RequeueAfter: requeueDelay},
 		expectedErrMsg: "can't list endpoints",
 	}, {
 		name: "Fails if it can't attach the endpoints",
@@ -376,6 +382,7 @@ func TestReconcile(t *testing.T) {
 			once(m.ListEndpoints(mctx, neg)).Return([]*gcp.PortMapping{}, nil)
 			callErr(m.AttachEndpoints(mctx, neg, s.portMappings()), errors.New("can't attach endpoints"))
 		},
+		expectedRes:    reconcile.Result{RequeueAfter: requeueDelay},
 		expectedErrMsg: "can't attach endpoints",
 	}, {
 		name: "Fails if it can't get the forwarding rule",
@@ -399,6 +406,7 @@ func TestReconcile(t *testing.T) {
 			noErr(m.AttachEndpoints(mctx, neg, s.portMappings()))
 			getErr(m.GetForwardingRule(mctx, fwdRule), errors.New("can't get forwarding rule"))
 		},
+		expectedRes:    reconcile.Result{RequeueAfter: requeueDelay},
 		expectedErrMsg: "can't get forwarding rule",
 	}, {
 		name: "Fails if it can't create the forwarding rule",
@@ -423,6 +431,7 @@ func TestReconcile(t *testing.T) {
 			notFound(m.GetForwardingRule(mctx, fwdRule))
 			callErr(m.CreateForwardingRule(mctx, fwdRule, be, nil, nil, ports), errors.New("can't create forwarding rule"))
 		},
+		expectedRes:    reconcile.Result{RequeueAfter: requeueDelay},
 		expectedErrMsg: "can't create forwarding rule",
 	}, {
 		name: "Fails if it can't get the service attachment",
@@ -448,6 +457,7 @@ func TestReconcile(t *testing.T) {
 			noErr(m.CreateForwardingRule(mctx, fwdRule, be, nil, nil, ports))
 			getErr(m.GetServiceAttachment(mctx, svcAtt), errors.New("can't get service attachment"))
 		},
+		expectedRes:    reconcile.Result{RequeueAfter: requeueDelay},
 		expectedErrMsg: "can't get service attachment",
 	}, {
 		name: "Fails if it can't create the service attachment",
@@ -477,6 +487,7 @@ func TestReconcile(t *testing.T) {
 			notFound(m.GetServiceAttachment(mctx, svcAtt))
 			callErr(m.CreateServiceAttachment(mctx, svcAtt, fwdRuleFQN, consumers, s.spec.NatSubnetFQNs), errors.New("can't create service attachment"))
 		},
+		expectedRes:    reconcile.Result{RequeueAfter: requeueDelay},
 		expectedErrMsg: "can't create service attachment",
 	}, {
 		name: "Doesn't create or update the firewall if it already exists and is up to date",
@@ -778,7 +789,7 @@ func TestDelete(t *testing.T) {
 			m := mock.EXPECT()
 			callErr(m.DeleteServiceAttachment(mctx, svcAtt), errors.New("can't delete service attachment"))
 		},
-		expectedRes:    reconcile.Result{RequeueAfter: 1 * time.Minute},
+		expectedRes:    reconcile.Result{RequeueAfter: requeueDelay},
 		expectedErrMsg: "can't delete service attachment",
 	}, {
 		name: "Returns an error if it can't delete the forwarding rule",
@@ -787,7 +798,7 @@ func TestDelete(t *testing.T) {
 			noErr(m.DeleteServiceAttachment(mctx, svcAtt))
 			callErr(m.DeleteForwardingRule(mctx, fwdRule), errors.New("can't delete forwarding rule"))
 		},
-		expectedRes:    reconcile.Result{RequeueAfter: 1 * time.Minute},
+		expectedRes:    reconcile.Result{RequeueAfter: requeueDelay},
 		expectedErrMsg: "can't delete forwarding rule",
 	}, {
 		name: "Returns an error if it can't delete the backend service",
@@ -797,7 +808,7 @@ func TestDelete(t *testing.T) {
 			noErr(m.DeleteForwardingRule(mctx, fwdRule))
 			callErr(m.DeleteBackendService(mctx, be), errors.New("can't delete backend service"))
 		},
-		expectedRes:    reconcile.Result{RequeueAfter: 1 * time.Minute},
+		expectedRes:    reconcile.Result{RequeueAfter: requeueDelay},
 		expectedErrMsg: "can't delete backend service",
 	}, {
 		name: "Returns an error if it can't delete the NEG",
@@ -808,7 +819,7 @@ func TestDelete(t *testing.T) {
 			noErr(m.DeleteBackendService(mctx, be))
 			callErr(m.DeletePortmapNEG(mctx, neg), errors.New("can't delete NEG"))
 		},
-		expectedRes:    reconcile.Result{RequeueAfter: 1 * time.Minute},
+		expectedRes:    reconcile.Result{RequeueAfter: requeueDelay},
 		expectedErrMsg: "can't delete NEG",
 	}, {
 		name: "Returns an error if it can't delete the firewall policies",
@@ -820,7 +831,7 @@ func TestDelete(t *testing.T) {
 			noErr(m.DeletePortmapNEG(mctx, neg))
 			callErr(m.DeleteFirewallPolicies(mctx, fw), errors.New("can't delete firewall policies"))
 		},
-		expectedRes:    reconcile.Result{RequeueAfter: 1 * time.Minute},
+		expectedRes:    reconcile.Result{RequeueAfter: requeueDelay},
 		expectedErrMsg: "can't delete firewall policies",
 	}}
 
