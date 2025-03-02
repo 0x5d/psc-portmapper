@@ -1,0 +1,15 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: {{ include "psc-portmapper.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "psc-portmapper.labels" . | nindent 4 }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: {{ include "psc-portmapper.serviceAccountName" . }}
+subjects:
+  - kind: ServiceAccount
+    name: {{ include "psc-portmapper.serviceAccountName" . }}
+    namespace: {{ .Release.Namespace }}
