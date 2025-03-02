@@ -1,0 +1,57 @@
+image:
+  # The controller image's repository.
+  repository: 00x5d/psc-portmapper
+  # This sets the pull policy for images.
+  pullPolicy: Always
+  # Overrides the image tag, whose default is the chart appVersion.
+  tag: "0.1.0"
+
+# Override the chart name.
+nameOverride: ""
+fullnameOverride: ""
+
+# This section builds out the service account more information can be found here: https://kubernetes.io/docs/concepts/security/service-accounts/
+serviceAccount:
+  # Specifies whether a service account should be created
+  create: true
+  # Automatically mount a ServiceAccount's API credentials?
+  automount: true
+  # Annotations to add to the service account
+  annotations: {}
+  # The name of the service account to use.
+  # If not set and create is true, a name is generated using the fullname template
+  name: ""
+
+config:
+  gcp:
+    # The GCP project ID
+    project: ""
+    # The GCP region
+    region: ""
+    # The network
+    network: ""
+    # The subnetwork
+    subnet: ""
+    # Annotations for the GCP resources created by the controller.
+    # Must be formatted like: key1:value1,key2:value2
+    annotations: ""
+
+# Additional annotations that will go on the controller pod.
+podAnnotations: {}
+
+# Additional labels that will go on the controller pod.
+podLabels: {}
+
+podSecurityContext: {}
+
+securityContext: {}
+
+resources: {}
+
+nodeSelector: {}
+
+tolerations: []
+
+affinity: {}
+
+watchNamespace: "whatevs"

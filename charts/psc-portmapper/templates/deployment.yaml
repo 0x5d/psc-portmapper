@@ -1,0 +1,87 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "psc-portmapper.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "psc-portmapper.labels" . | nindent 4 }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "psc-portmapper.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      {{- with .Values.podAnnotations }}
+      annotations:
+        kubectl.kubernetes.io/default-container: manager
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      labels:
+        {{- include "psc-portmapper.labels" . | nindent 8 }}
+        {{- with .Values.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      serviceAccountName: {{ include "psc-portmapper.serviceAccountName" . }}
+      securityContext:
+        runAsNonRoot: true
+      containers:
+      - command:
+        - psc-portmapper
+        args:
+          - --leader-elect
+          - --health-probe-bind-address=:8081
+          - --namespace='{{ .Values.watchNamespace }}'
+        image: '{{ .Values.image.repository }}:{{ .Values.image.tag }}'
+        imagePullPolicy: {{ .Values.image.pullPolicy }}
+        env:
+        - name: GCP_PROJECT
+          value: {{ .Values.config.gcp.project }}
+        - name: GCP_REGION
+          value: {{ .Values.config.gcp.region }}
+        - name: GCP_NETWORK
+          value: {{ .Values.config.gcp.network }}
+        - name: GCP_SUBNET
+          value: {{ .Values.config.gcp.subnet }}
+        - name: GCP_ANNOTATIONS
+          value: {{ .Values.config.gcp.annotations }}
+        name: manager
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+            - "ALL"
+        livenessProbe:
+          httpGet:
+            path: /healthz
+            port: 8081
+          initialDelaySeconds: 15
+          periodSeconds: 20
+        readinessProbe:
+          httpGet:
+            path: /readyz
+            port: 8081
+          initialDelaySeconds: 5
+          periodSeconds: 10
+        # TODO(user): Configure the resources accordingly based on the project requirements.
+        # More info: https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/
+        resources:
+          limits:
+            cpu: 500m
+            memory: 128Mi
+          requests:
+            cpu: 10m
+            memory: 64Mi
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}

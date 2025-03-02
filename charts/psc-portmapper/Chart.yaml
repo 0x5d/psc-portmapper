@@ -1,0 +1,6 @@
+apiVersion: v2
+name: psc-portmapper
+description: A K8s controller to expose StatefulSets via GCP Private Service Connect. 
+type: application
+version: 0.1.0
+appVersion: "0.1.0"
