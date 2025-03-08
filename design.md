@@ -12,53 +12,39 @@ Nevertheless, for processes that rely on stateful protocols (e.g. Kafka), where 
 
 To expose a cluster of stateful processes through PSC, providers like [Confluent](https://docs.confluent.io/cloud/current/networking/private-links/gcp-private-service-connect.html) & [Instacluster](https://www.instaclustr.com/support/documentation/kafka/using-kafka/connecting-to-a-private-service-connect-apache-kafka-cluster/) expose one service attachment per broker. As a user, this is a PITA - you have to perform N sets of manual steps for a cluster with N brokers - establishing the PSC endpoint/ service attachment connection, setting up DNS, creating N different subnets with [purpose: `PRIVATE_SERVICE_CONNECT`](https://codelabs.developers.google.com/cloudnet-psc-ilb#10). If you scale your cluster up (something that managed Kafka providers support, usually transparently), you have to perform the list of steps yet again, or the new broker/ node won't be reachable from the consumer side.
 
-TODO: ADD DIAGRAM.
-
 ## Proposal
 
 [Port-mapping Network Endpoint Groups](https://cloud.google.com/load-balancing/docs/negs#port-mapping-neg) (NEGs) were introduced earlier in 2024, adding routing capabilities (at layer 4, via ports) to their load-balancing offering.
 
-TODO: ADD DIAGRAM.
+By leveraging port-mapping NEGs, the per-replica service attachment model can be ditched to use a single service attachment exposing each replica on a different node.
+
+![Diagram](static/image.png)
 
 ### Spec
+
 ```yml
 apiVersion: apps/v1
 kind: StatefulSet
 metadata:
   name: web
   annotations:
-    0x5d.org/psc-portmapper: '{"prefix": "domain-", "start_port": 32000}'
+    0x5d.org/psc-portmapper: '{"prefix":"prefix-","nat_subnet_fqns":["projects/my-project/regions/us-east1/subnetworks/my-subnet"],"node_ports":{"app":{"node_port":30000,"container_port":8080,"starting_port":30000}}}'
 spec:
   selector:
     matchLabels:
-      app: nginx # has to match .spec.template.metadata.labels
-  serviceName: "nginx"
-  replicas: 3 # by default is 1
-  minReadySeconds: 10 # by default is 0
+      app: db
+  serviceName: "db"
+  replicas: 3
+  minReadySeconds: 10
   template:
     metadata:
       labels:
-        app: nginx # has to match .spec.selector.matchLabels
+        app: db
     spec:
       terminationGracePeriodSeconds: 10
       containers:
-      - name: nginx
-        image: registry.k8s.io/nginx-slim:0.24
-        ports:
-        - containerPort: 80
-          name: web
-        volumeMounts:
-        - name: www
-          mountPath: /usr/share/nginx/html
-  volumeClaimTemplates:
-  - metadata:
-      name: www
-    spec:
-      accessModes: [ "ReadWriteOnce" ]
-      storageClassName: "my-storage-class"
-      resources:
-        requests:
-          storage: 1Gi
+      - name: db
+        image: db:latest
 ```
 - https://codelabs.developers.google.com/cloudnet-psc-portmapping
 - https://cloud.google.com/vpc/docs/about-private-service-connect-port-mapping
