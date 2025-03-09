@@ -33,7 +33,7 @@ spec:
         args:
           - --leader-elect
           - --health-probe-bind-address=:8081
-          - --namespace='{{ .Values.watchNamespace }}'
+          - --namespace='{{ default .Release.Namespace .Values.watchNamespace }}'
         image: '{{ .Values.image.repository }}:{{ .Values.image.tag }}'
         imagePullPolicy: {{ .Values.image.pullPolicy }}
         env:
