@@ -216,6 +216,8 @@ func (c *GCPClient) DetachEndpoints(ctx context.Context, neg string, mappings []
 
 func (c *GCPClient) GetFirewallPolicies(ctx context.Context, name string) (*computepb.FirewallPolicy, error) {
 	req := &computepb.GetRegionNetworkFirewallPolicyRequest{
+		Project:        c.cfg.Project,
+		Region:         c.cfg.Region,
 		FirewallPolicy: name,
 	}
 	return c.firewalls.Get(ctx, req, callOpts()...)

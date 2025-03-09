@@ -15,3 +15,9 @@ rules:
     - patch
     - update
     - create
+  - apiGroups: [""]
+    resources: ["services"]
+    verbs:
+    - create
+    - delete
+    - update
