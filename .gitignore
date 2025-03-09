@@ -27,3 +27,7 @@ go.work
 *~
 .DS_Store
 *.tgz
+
+.terraform
+*tfstate*
+*.tfvars
