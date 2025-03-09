@@ -139,6 +139,13 @@ func (r *PortmapReconciler) Reconcile(ctx context.Context, req reconcile.Request
 		hostnames = append(hostnames, n.ObjectMeta.Annotations[hostnameAnnotation])
 	}
 
+	if len(hostnames) != numPods {
+		// TODO: Unit-test this path.
+		err := errors.New("some pods are missing the hostname annotation")
+		log.Error(err, "Failed to get the hostnames of the nodes the STS pods are scheduled on.")
+		return reconcile.Result{RequeueAfter: requeueDelay}, err
+	}
+
 	mappings, err := r.getPortMappings(log, &spec, nodes, pods.Items)
 	if err != nil {
 		log.Error(err, "Failed to get the port mappings.")
@@ -163,6 +170,10 @@ func (r *PortmapReconciler) getPortMappings(log logr.Logger, spec *Spec, nodes m
 		for _, p := range spec.NodePorts {
 			port := p.StartingPort + int32(i)
 			nodeName := pods[i].Spec.NodeName
+			if nodeName == "" {
+				log.Info("Skipping port mapping for unscheduled pod.", "namespace", pods[i].Namespace, "name", pods[i].Name)
+				continue
+			}
 			node := nodes[nodeName]
 			instance, err := fqInstaceName(node.Spec.ProviderID)
 			if err != nil {

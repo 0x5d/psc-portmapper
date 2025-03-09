@@ -220,7 +220,7 @@ func (c *GCPClient) GetFirewallPolicies(ctx context.Context, name string) (*comp
 		Region:         c.cfg.Region,
 		FirewallPolicy: name,
 	}
-	return c.firewalls.Get(ctx, req, callOpts()...)
+	return get(ctx, c.firewalls.Get, req)
 }
 
 func (c *GCPClient) CreateFirewallPolicies(ctx context.Context, name string, ports map[int32]struct{}, instances []string) error {
@@ -436,7 +436,7 @@ func get[T any, U any, F func(context.Context, T, ...gax.CallOption) (U, error)]
 	}
 	var ae *apierror.APIError
 	if errors.As(err, &ae) {
-		if ae.HTTPCode() != http.StatusNotFound {
+		if ae.HTTPCode() == http.StatusNotFound {
 			return u, ErrNotFound
 		}
 		return u, &ClientError{msg: ae.Error(), status: ae.HTTPCode()}
@@ -455,7 +455,7 @@ func call[T any, F func(context.Context, T, ...gax.CallOption) (*compute.Operati
 	}
 	var ae *apierror.APIError
 	if errors.As(err, &ae) {
-		if ae.HTTPCode() != http.StatusNotFound {
+		if ae.HTTPCode() == http.StatusNotFound {
 			return ErrNotFound
 		}
 		return &ClientError{msg: ae.Error(), status: ae.HTTPCode()}
