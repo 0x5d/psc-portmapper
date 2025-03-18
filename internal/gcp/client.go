@@ -109,7 +109,7 @@ func (c *GCPClient) GetNEG(ctx context.Context, name string) (*computepb.Network
 		Region:               c.cfg.Region,
 		NetworkEndpointGroup: name,
 	}
-	return c.negs.Get(ctx, req, callOpts()...)
+	return get(ctx, c.negs.Get, req)
 }
 
 func (c *GCPClient) CreatePortmapNEG(ctx context.Context, name string) error {
@@ -282,7 +282,7 @@ func (c *GCPClient) GetBackendService(ctx context.Context, name string) (*comput
 		Region:         c.cfg.Region,
 		BackendService: name,
 	}
-	return c.backendSvcs.Get(ctx, req, callOpts()...)
+	return get(ctx, c.backendSvcs.Get, req)
 }
 
 func (c *GCPClient) CreateBackendService(ctx context.Context, name string, neg string) error {
@@ -326,7 +326,7 @@ func (c *GCPClient) GetForwardingRule(ctx context.Context, name string) (*comput
 		Region:         c.cfg.Region,
 		ForwardingRule: name,
 	}
-	return c.fwdRules.Get(ctx, req, callOpts()...)
+	return get(ctx, c.fwdRules.Get, req)
 }
 
 func (c *GCPClient) CreateForwardingRule(ctx context.Context, name, backendSvc string, ip *string, globalAccess *bool) error {
@@ -375,7 +375,7 @@ func (c *GCPClient) GetServiceAttachment(ctx context.Context, name string) (*com
 		Region:            c.cfg.Region,
 		ServiceAttachment: name,
 	}
-	return c.svcAtts.Get(ctx, req, callOpts()...)
+	return get(ctx, c.svcAtts.Get, req)
 }
 
 func (c *GCPClient) CreateServiceAttachment(
@@ -427,31 +427,29 @@ func get[T any, U any, F func(context.Context, T, ...gax.CallOption) (U, error)]
 	if err == nil {
 		return u, nil
 	}
-	var ae *apierror.APIError
-	if errors.As(err, &ae) {
-		if ae.HTTPCode() != http.StatusNotFound {
-			return u, ErrNotFound
-		}
-		return u, &ClientError{msg: ae.Error(), status: ae.HTTPCode()}
-	}
-	return u, &ClientError{msg: err.Error(), status: -1}
+	return u, toClientError(err)
 }
 
 func call[T any, F func(context.Context, T, ...gax.CallOption) (*compute.Operation, error)](ctx context.Context, f F, req T) error {
 	op, err := f(ctx, req)
 	if err != nil {
-		return err
+		return toClientError(err)
 	}
 	err = op.Wait(ctx, callOpts()...)
 	if err == nil {
 		return nil
 	}
+	return toClientError(err)
+}
+
+func toClientError(err error) error {
 	var ae *apierror.APIError
 	if errors.As(err, &ae) {
-		if ae.HTTPCode() != http.StatusNotFound {
+		if ae.HTTPCode() == http.StatusNotFound {
 			return ErrNotFound
 		}
-		return &ClientError{msg: ae.Error(), status: ae.HTTPCode()}
+		msg := fmt.Sprintf("%s: %s", ae.Error(), ae.Details())
+		return &ClientError{msg: msg, status: ae.HTTPCode()}
 	}
 	return &ClientError{msg: err.Error(), status: -1}
 }
