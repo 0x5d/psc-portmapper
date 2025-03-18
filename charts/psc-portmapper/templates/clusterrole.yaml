@@ -24,3 +24,18 @@ rules:
     - watch
     - patch
     - update
+  - apiGroups: [""]
+    resources: ["services"]
+    verbs:
+    - list
+    - watch
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs:
+    - list
+    - watch
+  - apiGroups: [""]
+    resources: ["nodes"]
+    verbs:
+    - list
+    - watch

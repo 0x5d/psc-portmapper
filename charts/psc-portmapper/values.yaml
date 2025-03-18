@@ -4,11 +4,13 @@ image:
   # This sets the pull policy for images.
   pullPolicy: Always
   # Overrides the image tag, whose default is the chart appVersion.
-  tag: "0.1.0"
+  tag: "0.0.0"
 
 # Override the chart name.
 nameOverride: ""
 fullnameOverride: ""
+
+tag: ""
 
 # This section builds out the service account more information can be found here: https://kubernetes.io/docs/concepts/security/service-accounts/
 serviceAccount:
@@ -32,6 +34,9 @@ config:
     network: ""
     # The subnetwork
     subnet: ""
+    # The service account email for the controller to use.
+    # https://cloud.google.com/kubernetes-engine/docs/how-to/workload-identity
+    serviceAccount: ""
     # Annotations for the GCP resources created by the controller.
     # Must be formatted like: key1:value1,key2:value2
     annotations: ""
@@ -54,4 +59,4 @@ tolerations: []
 
 affinity: {}
 
-watchNamespace: "whatevs"
+watchNamespace: ""
