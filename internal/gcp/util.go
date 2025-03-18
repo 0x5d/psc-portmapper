@@ -36,8 +36,24 @@ func FirewallNeedsUpdate(fw *computepb.Firewall, expectedPorts map[int32]struct{
 	return false
 }
 
+func NetworkFQN(project, name string) string {
+	return fqnBase(project) + "/global/networks/" + name
+}
+
+func SubnetFQN(project, region, name string) string {
+	return regionFQNBase(project, region) + "/subnetworks/" + name
+}
+
 func ForwardingRuleFQN(project, region, name string) string {
 	return regionFQNBase(project, region) + "/forwardingRules/" + name
+}
+
+func NEGFQN(project, region, name string) string {
+	return regionFQNBase(project, region) + "/networkEndpointGroups/" + name
+}
+
+func BackendServiceFQN(project, region, name string) string {
+	return regionFQNBase(project, region) + "/backendServices/" + name
 }
 
 func ServiceAttachmentFQN(project, region, name string) string {
@@ -45,7 +61,15 @@ func ServiceAttachmentFQN(project, region, name string) string {
 }
 
 func regionFQNBase(project, region string) string {
-	return "projects/" + project + "/regions/" + region
+	return fqnBase(project) + "/regions/" + region
+}
+
+func fqnBase(project string) string {
+	return "projects/" + project
+}
+
+func isFQN(s string) bool {
+	return strings.HasPrefix(s, "projects/")
 }
 
 func toSortedStr(is map[int32]struct{}) []string {
