@@ -270,7 +270,7 @@ func (r *PortmapReconciler) reconcile(ctx context.Context, log logr.Logger, spec
 	}, {
 		"forwarding rule",
 		func() error {
-			return r.reconcileForwardingRule(ctx, log, fwdRuleName(spec.Prefix), backendName(spec.Prefix), ports, spec.IP, spec.GlobalAccess)
+			return r.reconcileForwardingRule(ctx, log, fwdRuleName(spec.Prefix), backendName(spec.Prefix), spec.IP, spec.GlobalAccess)
 		},
 	}, {
 		"service attachment",
@@ -492,7 +492,6 @@ func (r *PortmapReconciler) reconcileForwardingRule(
 	log logr.Logger,
 	name string,
 	backend string,
-	ports map[int32]struct{},
 	ip *string,
 	globalAccess *bool,
 ) error {
@@ -504,7 +503,7 @@ func (r *PortmapReconciler) reconcileForwardingRule(
 		log.Error(err, "Got an unexpected error trying to get the backend.", "name", name)
 		return err
 	}
-	err = r.gcp.CreateForwardingRule(ctx, name, backend, ip, globalAccess, ports)
+	err = r.gcp.CreateForwardingRule(ctx, name, backend, ip, globalAccess)
 	if err != nil {
 		log.Error(err, "Failed to create the forwarding rule.")
 		return err
