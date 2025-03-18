@@ -136,7 +136,23 @@ func (r *PortmapReconciler) Reconcile(ctx context.Context, req reconcile.Request
 
 	hostnames := make([]string, 0, numPods)
 	for _, n := range nodes {
-		hostnames = append(hostnames, n.ObjectMeta.Annotations[hostnameAnnotation])
+		if n.Spec.ProviderID == "" {
+			err := errors.New("node is missing spec.providerID")
+			return reconcile.Result{RequeueAfter: requeueDelay}, err
+		}
+		fqin, err := fqInstaceName(n.Spec.ProviderID)
+		if err != nil {
+			log.Error(err, "Failed to get the fully qualified instance name for the node.", "node", n.Name)
+			return reconcile.Result{RequeueAfter: requeueDelay}, err
+		}
+		hostnames = append(hostnames, fqin)
+	}
+
+	if len(hostnames) != numPods {
+		// TODO: Unit-test this path.
+		err := errors.New("some pods are missing the hostname annotation")
+		log.Error(err, "Failed to get the hostnames of the nodes the STS pods are scheduled on.")
+		return reconcile.Result{RequeueAfter: requeueDelay}, err
 	}
 
 	mappings, err := r.getPortMappings(log, &spec, nodes, pods.Items)
@@ -163,6 +179,10 @@ func (r *PortmapReconciler) getPortMappings(log logr.Logger, spec *Spec, nodes m
 		for _, p := range spec.NodePorts {
 			port := p.StartingPort + int32(i)
 			nodeName := pods[i].Spec.NodeName
+			if nodeName == "" {
+				log.Info("Skipping port mapping for unscheduled pod.", "namespace", pods[i].Namespace, "name", pods[i].Name)
+				continue
+			}
 			node := nodes[nodeName]
 			instance, err := fqInstaceName(node.Spec.ProviderID)
 			if err != nil {
