@@ -294,16 +294,19 @@ func (c *GCPClient) GetBackendService(ctx context.Context, name string) (*comput
 func (c *GCPClient) CreateBackendService(ctx context.Context, name string, neg string) error {
 	reqID := uuid.New().String()
 	protocol := computepb.BackendService_TCP.String()
+	negFQN := NEGFQN(c.cfg.Project, c.cfg.Region, neg)
+	internal := computepb.BackendService_INTERNAL.String()
 	req := &computepb.InsertRegionBackendServiceRequest{
 		RequestId: &reqID,
 		Project:   c.cfg.Project,
 		Region:    c.cfg.Region,
 		BackendServiceResource: &computepb.BackendService{
-			Name:     &name,
-			Network:  &c.cfg.Network,
-			Protocol: &protocol,
+			Name:                &name,
+			Network:             &c.cfg.Network,
+			Protocol:            &protocol,
+			LoadBalancingScheme: &internal,
 			Backends: []*computepb.Backend{{
-				Group: &neg,
+				Group: &negFQN,
 				// TODO:
 				// MaxConnections, etc.
 			}},
