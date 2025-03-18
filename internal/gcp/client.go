@@ -395,6 +395,7 @@ func (c *GCPClient) CreateServiceAttachment(
 	natSubnetFQNs []string,
 ) error {
 	reqID := uuid.New().String()
+	acceptAuto := computepb.ServiceAttachment_ACCEPT_AUTOMATIC.String()
 	req := &computepb.InsertServiceAttachmentRequest{
 		RequestId: &reqID,
 		Project:   c.cfg.Project,
@@ -404,6 +405,7 @@ func (c *GCPClient) CreateServiceAttachment(
 			ProducerForwardingRule: &fwdRuleFQN,
 			ConsumerAcceptLists:    consumers,
 			NatSubnets:             natSubnetFQNs,
+			ConnectionPreference:   &acceptAuto,
 		},
 	}
 	return call(ctx, c.svcAtts.Insert, req)
