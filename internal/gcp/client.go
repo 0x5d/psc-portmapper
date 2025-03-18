@@ -75,6 +75,12 @@ type PortMapping struct {
 var _ Client = &GCPClient{}
 
 func NewClient(ctx context.Context, cfg ClientConfig, opts ...option.ClientOption) (*GCPClient, error) {
+	if !isFQN(cfg.Network) {
+		cfg.Network = NetworkFQN(cfg.Project, cfg.Network)
+	}
+	if !isFQN(cfg.Subnetwork) {
+		cfg.Subnetwork = SubnetFQN(cfg.Project, cfg.Region, cfg.Subnetwork)
+	}
 	negs, err := compute.NewRegionNetworkEndpointGroupsRESTClient(ctx, opts...)
 	if err != nil {
 		return nil, err
