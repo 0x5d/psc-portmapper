@@ -39,10 +39,10 @@ type Client interface {
 	AttachEndpoints(ctx context.Context, neg string, mappings []*PortMapping) error
 	DetachEndpoints(ctx context.Context, neg string, mappings []*PortMapping) error
 	// Firewalls API
-	GetFirewallPolicies(ctx context.Context, name string) (*computepb.FirewallPolicy, error)
-	CreateFirewallPolicies(ctx context.Context, name string, ports map[int32]struct{}, instances []string) error
-	UpdateFirewallPolicies(ctx context.Context, name string, ports map[int32]struct{}, instances []string) error
-	DeleteFirewallPolicies(ctx context.Context, name string) error
+	GetFirewall(ctx context.Context, name string) (*computepb.Firewall, error)
+	CreateFirewall(ctx context.Context, name string, ports map[int32]struct{}) error
+	UpdateFirewall(ctx context.Context, name string, ports map[int32]struct{}) error
+	DeleteFirewall(ctx context.Context, name string) error
 	// Backend Services API
 	GetBackendService(ctx context.Context, name string) (*computepb.BackendService, error)
 	CreateBackendService(ctx context.Context, name string, neg string) error
@@ -60,7 +60,7 @@ type Client interface {
 type GCPClient struct {
 	cfg         *ClientConfig
 	negs        *compute.RegionNetworkEndpointGroupsClient
-	firewalls   *compute.RegionNetworkFirewallPoliciesClient
+	firewalls   *compute.FirewallsClient
 	backendSvcs *compute.RegionBackendServicesClient
 	fwdRules    *compute.ForwardingRulesClient
 	svcAtts     *compute.ServiceAttachmentsClient
@@ -79,7 +79,7 @@ func NewClient(ctx context.Context, cfg ClientConfig, opts ...option.ClientOptio
 	if err != nil {
 		return nil, err
 	}
-	firewalls, err := compute.NewRegionNetworkFirewallPoliciesRESTClient(ctx, opts...)
+	firewalls, err := compute.NewFirewallsRESTClient(ctx, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -214,53 +214,64 @@ func (c *GCPClient) DetachEndpoints(ctx context.Context, neg string, mappings []
 	return call(ctx, c.negs.DetachNetworkEndpoints, req)
 }
 
-func (c *GCPClient) GetFirewallPolicies(ctx context.Context, name string) (*computepb.FirewallPolicy, error) {
-	req := &computepb.GetRegionNetworkFirewallPolicyRequest{
-		FirewallPolicy: name,
-	}
-	return c.firewalls.Get(ctx, req, callOpts()...)
+func (c *GCPClient) GetFirewall(ctx context.Context, name string) (*computepb.Firewall, error) {
+	req := &computepb.GetFirewallRequest{Project: c.cfg.Project, Firewall: name}
+	return get(ctx, c.firewalls.Get, req)
 }
 
-func (c *GCPClient) CreateFirewallPolicies(ctx context.Context, name string, ports map[int32]struct{}, instances []string) error {
+func (c *GCPClient) CreateFirewall(ctx context.Context, name string, ports map[int32]struct{}) error {
 	reqID := uuid.New().String()
-	rule := firewallRule(ports, instances)
-	req := &computepb.InsertRegionNetworkFirewallPolicyRequest{
+	tcp := "tcp"
+	priority := int32(1000)
+	ingress := computepb.FirewallPolicyRule_INGRESS.String()
+	strPorts := toSortedStr(ports)
+
+	req := &computepb.InsertFirewallRequest{
 		RequestId: &reqID,
 		Project:   c.cfg.Project,
-		Region:    c.cfg.Region,
-		FirewallPolicyResource: &computepb.FirewallPolicy{
-			Name:  &name,
-			Rules: []*computepb.FirewallPolicyRule{rule},
+		FirewallResource: &computepb.Firewall{
+			Name:      &name,
+			Direction: &ingress,
+			Network:   &c.cfg.Network,
+			Priority:  &priority,
+			//TODO: TargetTags: []string{}, OR DestinationRanges: []string{},
+			Allowed: []*computepb.Allowed{{
+				IPProtocol: &tcp,
+				Ports:      strPorts,
+			}},
 		},
 	}
 	return call(ctx, c.firewalls.Insert, req)
 }
 
-func (c *GCPClient) UpdateFirewallPolicies(ctx context.Context, name string, ports map[int32]struct{}, instances []string) error {
+func (c *GCPClient) UpdateFirewall(ctx context.Context, name string, ports map[int32]struct{}) error {
 	reqID := uuid.New().String()
-	rule := firewallRule(ports, instances)
-	req := &computepb.PatchRegionNetworkFirewallPolicyRequest{
+	tcp := "tcp"
+	strPorts := toSortedStr(ports)
+	req := &computepb.PatchFirewallRequest{
 		RequestId: &reqID,
 		Project:   c.cfg.Project,
-		Region:    c.cfg.Region,
-		FirewallPolicyResource: &computepb.FirewallPolicy{
-			Name:  &name,
-			Rules: []*computepb.FirewallPolicyRule{rule},
+		Firewall:  name,
+		FirewallResource: &computepb.Firewall{
+			Name: &name,
+			Allowed: []*computepb.Allowed{{
+				IPProtocol: &tcp,
+				Ports:      strPorts,
+			}},
 		},
 	}
 	return call(ctx, c.firewalls.Patch, req)
 }
 
-func (c *GCPClient) DeleteFirewallPolicies(
+func (c *GCPClient) DeleteFirewall(
 	ctx context.Context,
 	name string,
 ) error {
 	reqID := uuid.New().String()
-	req := &computepb.DeleteRegionNetworkFirewallPolicyRequest{
-		RequestId:      &reqID,
-		Project:        c.cfg.Project,
-		Region:         c.cfg.Region,
-		FirewallPolicy: name,
+	req := &computepb.DeleteFirewallRequest{
+		RequestId: &reqID,
+		Project:   c.cfg.Project,
+		Firewall:  name,
 	}
 	return call(ctx, c.firewalls.Delete, req)
 }
@@ -397,26 +408,6 @@ func (c *GCPClient) DeleteServiceAttachment(
 		ServiceAttachment: name,
 	}
 	return call(ctx, c.svcAtts.Delete, req)
-}
-
-func firewallRule(ports map[int32]struct{}, instances []string) *computepb.FirewallPolicyRule {
-	allow := "allow"
-	tcp := "tcp"
-	priority := int32(1000)
-	ingress := computepb.FirewallPolicyRule_INGRESS.String()
-	strPorts := toSortedStr(ports)
-	return &computepb.FirewallPolicyRule{
-		Action:          &allow,
-		Direction:       &ingress,
-		TargetResources: instances,
-		Priority:        &priority,
-		Match: &computepb.FirewallPolicyRuleMatcher{
-			Layer4Configs: []*computepb.FirewallPolicyRuleMatcherLayer4Config{{
-				IpProtocol: &tcp,
-				Ports:      strPorts,
-			}},
-		},
-	}
 }
 
 func callOpts() []gax.CallOption {

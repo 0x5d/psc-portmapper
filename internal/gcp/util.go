@@ -3,20 +3,21 @@ package gcp
 import (
 	"sort"
 	"strconv"
+	"strings"
 
 	"cloud.google.com/go/compute/apiv1/computepb"
 )
 
-func FirewallNeedsUpdate(fw *computepb.FirewallPolicy, expectedPorts map[int32]struct{}) bool {
-	if fw == nil || len(fw.Rules) != 1 {
+func FirewallNeedsUpdate(fw *computepb.Firewall, expectedPorts map[int32]struct{}) bool {
+	fw.GetAllowed()
+	if fw == nil || fw.GetAllowed() == nil || len(fw.Allowed) != 1 {
 		return true
 	}
-	rule := fw.Rules[0]
-	if rule == nil || rule.Match == nil || len(rule.Match.Layer4Configs) != 1 {
+	rule := fw.Allowed[0]
+	if rule == nil || len(rule.Ports) == 0 {
 		return true
 	}
-	l4cfg := rule.Match.Layer4Configs[0]
-	if l4cfg == nil || l4cfg.IpProtocol == nil || *l4cfg.IpProtocol != "tcp" {
+	if rule.IPProtocol == nil || *rule.IPProtocol != "tcp" {
 		return true
 	}
 	strPorts := toSortedStr(expectedPorts)
@@ -24,10 +25,10 @@ func FirewallNeedsUpdate(fw *computepb.FirewallPolicy, expectedPorts map[int32]s
 	for _, p := range strPorts {
 		portSet[p] = struct{}{}
 	}
-	if len(l4cfg.Ports) != len(portSet) {
+	if len(rule.Ports) != len(portSet) {
 		return true
 	}
-	for _, p := range l4cfg.Ports {
+	for _, p := range rule.Ports {
 		if _, ok := portSet[p]; !ok {
 			return true
 		}
