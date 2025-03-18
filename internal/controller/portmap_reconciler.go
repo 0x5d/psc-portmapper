@@ -250,7 +250,7 @@ func (r *PortmapReconciler) reconcile(ctx context.Context, log logr.Logger, spec
 	}{{
 		"firewall",
 		func() error {
-			return r.reconcileFirewall(ctx, log, firewallName(spec.Prefix), ports, hostnames)
+			return r.reconcileFirewall(ctx, log, firewallName(spec.Prefix), ports)
 		},
 	}, {
 		"NEG",
@@ -320,7 +320,7 @@ func (r *PortmapReconciler) delete(ctx context.Context, log logr.Logger, spec *S
 	}, {
 		"firewall",
 		func() error {
-			return r.gcp.DeleteFirewallPolicies(ctx, firewallName(spec.Prefix))
+			return r.gcp.DeleteFirewall(ctx, firewallName(spec.Prefix))
 		},
 	}}
 	for _, d := range deleters {
@@ -400,22 +400,25 @@ func (r *PortmapReconciler) reconcileNodePortService(
 	return nil
 }
 
-func (r *PortmapReconciler) reconcileFirewall(ctx context.Context, log logr.Logger, name string, ports map[int32]struct{}, hostnames []string) error {
-	fw, err := r.gcp.GetFirewallPolicies(ctx, name)
-	if err == nil && gcp.FirewallNeedsUpdate(fw, ports) {
-		err = r.gcp.UpdateFirewallPolicies(ctx, name, ports, hostnames)
-		if err != nil {
-			log.Error(err, "Failed to update firewall policy.", "name", name, "ports", ports, "instances", hostnames)
-			return err
+func (r *PortmapReconciler) reconcileFirewall(ctx context.Context, log logr.Logger, name string, ports map[int32]struct{}) error {
+	fw, err := r.gcp.GetFirewall(ctx, name)
+	if err == nil {
+		if gcp.FirewallNeedsUpdate(fw, ports) {
+			err = r.gcp.UpdateFirewall(ctx, name, ports)
+			if err != nil {
+				log.Error(err, "Failed to update firewall.", "name", name, "ports", ports)
+				return err
+			}
 		}
+		return nil
 	}
 	if !errors.Is(err, gcp.ErrNotFound) {
-		log.Error(err, "Got an unexpected error trying to get firewall policy.", "name", name)
+		log.Error(err, "Got an unexpected error trying to get firewall.", "name", name)
 		return err
 	}
-	err = r.gcp.CreateFirewallPolicies(ctx, name, ports, hostnames)
+	err = r.gcp.CreateFirewall(ctx, name, ports)
 	if err != nil {
-		log.Error(err, "Failed to create firewall policy.", "ports", ports, "instances", hostnames)
+		log.Error(err, "Failed to create firewall.", "ports", ports)
 		return err
 	}
 	return nil
