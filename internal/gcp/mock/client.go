@@ -70,32 +70,32 @@ func (mr *MockClientMockRecorder) CreateBackendService(ctx, name, neg any) *gomo
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateBackendService", reflect.TypeOf((*MockClient)(nil).CreateBackendService), ctx, name, neg)
 }
 
-// CreateFirewallPolicies mocks base method.
-func (m *MockClient) CreateFirewallPolicies(ctx context.Context, name string, ports map[int32]struct{}, instances []string) error {
+// CreateFirewall mocks base method.
+func (m *MockClient) CreateFirewall(ctx context.Context, name string, ports map[int32]struct{}) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "CreateFirewallPolicies", ctx, name, ports, instances)
+	ret := m.ctrl.Call(m, "CreateFirewall", ctx, name, ports)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
-// CreateFirewallPolicies indicates an expected call of CreateFirewallPolicies.
-func (mr *MockClientMockRecorder) CreateFirewallPolicies(ctx, name, ports, instances any) *gomock.Call {
+// CreateFirewall indicates an expected call of CreateFirewall.
+func (mr *MockClientMockRecorder) CreateFirewall(ctx, name, ports any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateFirewallPolicies", reflect.TypeOf((*MockClient)(nil).CreateFirewallPolicies), ctx, name, ports, instances)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateFirewall", reflect.TypeOf((*MockClient)(nil).CreateFirewall), ctx, name, ports)
 }
 
 // CreateForwardingRule mocks base method.
-func (m *MockClient) CreateForwardingRule(ctx context.Context, name, backendSvc string, ip *string, globalAccess *bool, ports map[int32]struct{}) error {
+func (m *MockClient) CreateForwardingRule(ctx context.Context, name, backendSvc string, ip *string, globalAccess *bool) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "CreateForwardingRule", ctx, name, backendSvc, ip, globalAccess, ports)
+	ret := m.ctrl.Call(m, "CreateForwardingRule", ctx, name, backendSvc, ip, globalAccess)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // CreateForwardingRule indicates an expected call of CreateForwardingRule.
-func (mr *MockClientMockRecorder) CreateForwardingRule(ctx, name, backendSvc, ip, globalAccess, ports any) *gomock.Call {
+func (mr *MockClientMockRecorder) CreateForwardingRule(ctx, name, backendSvc, ip, globalAccess any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateForwardingRule", reflect.TypeOf((*MockClient)(nil).CreateForwardingRule), ctx, name, backendSvc, ip, globalAccess, ports)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateForwardingRule", reflect.TypeOf((*MockClient)(nil).CreateForwardingRule), ctx, name, backendSvc, ip, globalAccess)
 }
 
 // CreatePortmapNEG mocks base method.
@@ -140,18 +140,18 @@ func (mr *MockClientMockRecorder) DeleteBackendService(ctx, name any) *gomock.Ca
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteBackendService", reflect.TypeOf((*MockClient)(nil).DeleteBackendService), ctx, name)
 }
 
-// DeleteFirewallPolicies mocks base method.
-func (m *MockClient) DeleteFirewallPolicies(ctx context.Context, name string) error {
+// DeleteFirewall mocks base method.
+func (m *MockClient) DeleteFirewall(ctx context.Context, name string) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "DeleteFirewallPolicies", ctx, name)
+	ret := m.ctrl.Call(m, "DeleteFirewall", ctx, name)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
-// DeleteFirewallPolicies indicates an expected call of DeleteFirewallPolicies.
-func (mr *MockClientMockRecorder) DeleteFirewallPolicies(ctx, name any) *gomock.Call {
+// DeleteFirewall indicates an expected call of DeleteFirewall.
+func (mr *MockClientMockRecorder) DeleteFirewall(ctx, name any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteFirewallPolicies", reflect.TypeOf((*MockClient)(nil).DeleteFirewallPolicies), ctx, name)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteFirewall", reflect.TypeOf((*MockClient)(nil).DeleteFirewall), ctx, name)
 }
 
 // DeleteForwardingRule mocks base method.
@@ -225,19 +225,19 @@ func (mr *MockClientMockRecorder) GetBackendService(ctx, name any) *gomock.Call 
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetBackendService", reflect.TypeOf((*MockClient)(nil).GetBackendService), ctx, name)
 }
 
-// GetFirewallPolicies mocks base method.
-func (m *MockClient) GetFirewallPolicies(ctx context.Context, name string) (*computepb.FirewallPolicy, error) {
+// GetFirewall mocks base method.
+func (m *MockClient) GetFirewall(ctx context.Context, name string) (*computepb.Firewall, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetFirewallPolicies", ctx, name)
-	ret0, _ := ret[0].(*computepb.FirewallPolicy)
+	ret := m.ctrl.Call(m, "GetFirewall", ctx, name)
+	ret0, _ := ret[0].(*computepb.Firewall)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-// GetFirewallPolicies indicates an expected call of GetFirewallPolicies.
-func (mr *MockClientMockRecorder) GetFirewallPolicies(ctx, name any) *gomock.Call {
+// GetFirewall indicates an expected call of GetFirewall.
+func (mr *MockClientMockRecorder) GetFirewall(ctx, name any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetFirewallPolicies", reflect.TypeOf((*MockClient)(nil).GetFirewallPolicies), ctx, name)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetFirewall", reflect.TypeOf((*MockClient)(nil).GetFirewall), ctx, name)
 }
 
 // GetForwardingRule mocks base method.
@@ -328,16 +328,16 @@ func (mr *MockClientMockRecorder) Region() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Region", reflect.TypeOf((*MockClient)(nil).Region))
 }
 
-// UpdateFirewallPolicies mocks base method.
-func (m *MockClient) UpdateFirewallPolicies(ctx context.Context, name string, ports map[int32]struct{}, instances []string) error {
+// UpdateFirewall mocks base method.
+func (m *MockClient) UpdateFirewall(ctx context.Context, name string, ports map[int32]struct{}) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "UpdateFirewallPolicies", ctx, name, ports, instances)
+	ret := m.ctrl.Call(m, "UpdateFirewall", ctx, name, ports)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
-// UpdateFirewallPolicies indicates an expected call of UpdateFirewallPolicies.
-func (mr *MockClientMockRecorder) UpdateFirewallPolicies(ctx, name, ports, instances any) *gomock.Call {
+// UpdateFirewall indicates an expected call of UpdateFirewall.
+func (mr *MockClientMockRecorder) UpdateFirewall(ctx, name, ports any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateFirewallPolicies", reflect.TypeOf((*MockClient)(nil).UpdateFirewallPolicies), ctx, name, ports, instances)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateFirewall", reflect.TypeOf((*MockClient)(nil).UpdateFirewall), ctx, name, ports)
 }
