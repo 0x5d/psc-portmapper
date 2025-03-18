@@ -120,6 +120,7 @@ func main() {
 	gcpClient, err := gcp.NewClient(context.Background(), *cfg.GCP)
 	if err != nil {
 		log.Error(err, "unable to initialize GCP client")
+		os.Exit(1)
 	}
 
 	portmapper := controller.New(mgr.GetClient(), gcpClient)
