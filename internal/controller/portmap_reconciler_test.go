@@ -205,14 +205,10 @@ func TestReconcile(t *testing.T) {
 			for _, port := range s.spec.NodePorts {
 				ports[port.NodePort] = struct{}{}
 			}
-			instances := make([]string, 0, len(s.nodes.Items))
-			for _, node := range s.nodes.Items {
-				instances = append(instances, node.Name)
-			}
 			consumers := toConsumerProjectLimits(s.spec.ConsumerAcceptList)
 
-			notFound(m.GetFirewallPolicies(mctx, fw))
-			noErr(m.CreateFirewallPolicies(mctx, fw, ports, gomock.InAnyOrder(instances)))
+			notFound(m.GetFirewall(mctx, fw))
+			noErr(m.CreateFirewall(mctx, fw, ports))
 
 			notFound(m.GetNEG(mctx, neg))
 			noErr(m.CreatePortmapNEG(mctx, neg))
@@ -224,7 +220,7 @@ func TestReconcile(t *testing.T) {
 			noErr(m.AttachEndpoints(mctx, neg, s.portMappings()))
 
 			notFound(m.GetForwardingRule(mctx, fwdRule))
-			noErr(m.CreateForwardingRule(mctx, fwdRule, be, nil, nil, ports))
+			noErr(m.CreateForwardingRule(mctx, fwdRule, be, nil, nil))
 
 			notFound(m.GetServiceAttachment(mctx, svcAtt))
 			noErr(m.CreateServiceAttachment(mctx, svcAtt, fwdRuleFQN, consumers, s.spec.NatSubnetFQNs))
@@ -240,7 +236,7 @@ func TestReconcile(t *testing.T) {
 	}, {
 		name: "Fails if it can't get the firewall",
 		setup: func(t *testing.T, mock *mock.MockClient, s *state) {
-			getErr(mock.EXPECT().GetFirewallPolicies(mctx, fw), errors.New("can't get firewall"))
+			getErr(mock.EXPECT().GetFirewall(mctx, fw), errors.New("can't get firewall"))
 		},
 		expectedRes:    reconcile.Result{RequeueAfter: requeueDelay},
 		expectedErrMsg: "can't get firewall",
@@ -252,12 +248,8 @@ func TestReconcile(t *testing.T) {
 			for _, port := range s.spec.NodePorts {
 				ports[port.NodePort] = struct{}{}
 			}
-			instances := make([]string, 0, len(s.nodes.Items))
-			for _, node := range s.nodes.Items {
-				instances = append(instances, node.Name)
-			}
-			notFound(m.GetFirewallPolicies(mctx, fw))
-			callErr(m.CreateFirewallPolicies(mctx, fw, ports, gomock.InAnyOrder(instances)), errors.New("can't create firewall"))
+			notFound(m.GetFirewall(mctx, fw))
+			callErr(m.CreateFirewall(mctx, fw, ports), errors.New("can't create firewall"))
 		},
 		expectedRes:    reconcile.Result{RequeueAfter: requeueDelay},
 		expectedErrMsg: "can't create firewall",
@@ -269,12 +261,8 @@ func TestReconcile(t *testing.T) {
 			for _, port := range s.spec.NodePorts {
 				ports[port.NodePort] = struct{}{}
 			}
-			instances := make([]string, 0, len(s.nodes.Items))
-			for _, node := range s.nodes.Items {
-				instances = append(instances, node.Name)
-			}
-			notFound(m.GetFirewallPolicies(mctx, fw))
-			noErr(m.CreateFirewallPolicies(mctx, fw, ports, gomock.InAnyOrder(instances)))
+			notFound(m.GetFirewall(mctx, fw))
+			noErr(m.CreateFirewall(mctx, fw, ports))
 			getErr(m.GetNEG(mctx, neg), errors.New("can't get NEG"))
 		},
 		expectedRes:    reconcile.Result{RequeueAfter: requeueDelay},
@@ -287,12 +275,8 @@ func TestReconcile(t *testing.T) {
 			for _, port := range s.spec.NodePorts {
 				ports[port.NodePort] = struct{}{}
 			}
-			instances := make([]string, 0, len(s.nodes.Items))
-			for _, node := range s.nodes.Items {
-				instances = append(instances, node.Name)
-			}
-			notFound(m.GetFirewallPolicies(mctx, fw))
-			noErr(m.CreateFirewallPolicies(mctx, fw, ports, gomock.InAnyOrder(instances)))
+			notFound(m.GetFirewall(mctx, fw))
+			noErr(m.CreateFirewall(mctx, fw, ports))
 			notFound(m.GetNEG(mctx, neg))
 			once(m.CreatePortmapNEG(mctx, neg)).Return(errors.New("can't create NEG"))
 		},
@@ -306,12 +290,8 @@ func TestReconcile(t *testing.T) {
 			for _, port := range s.spec.NodePorts {
 				ports[port.NodePort] = struct{}{}
 			}
-			instances := make([]string, 0, len(s.nodes.Items))
-			for _, node := range s.nodes.Items {
-				instances = append(instances, node.Name)
-			}
-			notFound(m.GetFirewallPolicies(mctx, fw))
-			noErr(m.CreateFirewallPolicies(mctx, fw, ports, gomock.InAnyOrder(instances)))
+			notFound(m.GetFirewall(mctx, fw))
+			noErr(m.CreateFirewall(mctx, fw, ports))
 			notFound(m.GetNEG(mctx, neg))
 			noErr(m.CreatePortmapNEG(mctx, neg))
 			getErr(m.GetBackendService(mctx, be), errors.New("can't get backend"))
@@ -326,12 +306,8 @@ func TestReconcile(t *testing.T) {
 			for _, port := range s.spec.NodePorts {
 				ports[port.NodePort] = struct{}{}
 			}
-			instances := make([]string, 0, len(s.nodes.Items))
-			for _, node := range s.nodes.Items {
-				instances = append(instances, node.Name)
-			}
-			notFound(m.GetFirewallPolicies(mctx, fw))
-			noErr(m.CreateFirewallPolicies(mctx, fw, ports, gomock.InAnyOrder(instances)))
+			notFound(m.GetFirewall(mctx, fw))
+			noErr(m.CreateFirewall(mctx, fw, ports))
 			notFound(m.GetNEG(mctx, neg))
 			noErr(m.CreatePortmapNEG(mctx, neg))
 			notFound(m.GetBackendService(mctx, be))
@@ -347,12 +323,8 @@ func TestReconcile(t *testing.T) {
 			for _, port := range s.spec.NodePorts {
 				ports[port.NodePort] = struct{}{}
 			}
-			instances := make([]string, 0, len(s.nodes.Items))
-			for _, node := range s.nodes.Items {
-				instances = append(instances, node.Name)
-			}
-			notFound(m.GetFirewallPolicies(mctx, fw))
-			noErr(m.CreateFirewallPolicies(mctx, fw, ports, gomock.InAnyOrder(instances)))
+			notFound(m.GetFirewall(mctx, fw))
+			noErr(m.CreateFirewall(mctx, fw, ports))
 			notFound(m.GetNEG(mctx, neg))
 			noErr(m.CreatePortmapNEG(mctx, neg))
 			notFound(m.GetBackendService(mctx, be))
@@ -369,12 +341,8 @@ func TestReconcile(t *testing.T) {
 			for _, port := range s.spec.NodePorts {
 				ports[port.NodePort] = struct{}{}
 			}
-			instances := make([]string, 0, len(s.nodes.Items))
-			for _, node := range s.nodes.Items {
-				instances = append(instances, node.Name)
-			}
-			notFound(m.GetFirewallPolicies(mctx, fw))
-			noErr(m.CreateFirewallPolicies(mctx, fw, ports, gomock.InAnyOrder(instances)))
+			notFound(m.GetFirewall(mctx, fw))
+			noErr(m.CreateFirewall(mctx, fw, ports))
 			notFound(m.GetNEG(mctx, neg))
 			noErr(m.CreatePortmapNEG(mctx, neg))
 			notFound(m.GetBackendService(mctx, be))
@@ -392,12 +360,8 @@ func TestReconcile(t *testing.T) {
 			for _, port := range s.spec.NodePorts {
 				ports[port.NodePort] = struct{}{}
 			}
-			instances := make([]string, 0, len(s.nodes.Items))
-			for _, node := range s.nodes.Items {
-				instances = append(instances, node.Name)
-			}
-			notFound(m.GetFirewallPolicies(mctx, fw))
-			noErr(m.CreateFirewallPolicies(mctx, fw, ports, gomock.InAnyOrder(instances)))
+			notFound(m.GetFirewall(mctx, fw))
+			noErr(m.CreateFirewall(mctx, fw, ports))
 			notFound(m.GetNEG(mctx, neg))
 			noErr(m.CreatePortmapNEG(mctx, neg))
 			notFound(m.GetBackendService(mctx, be))
@@ -416,12 +380,8 @@ func TestReconcile(t *testing.T) {
 			for _, port := range s.spec.NodePorts {
 				ports[port.NodePort] = struct{}{}
 			}
-			instances := make([]string, 0, len(s.nodes.Items))
-			for _, node := range s.nodes.Items {
-				instances = append(instances, node.Name)
-			}
-			notFound(m.GetFirewallPolicies(mctx, fw))
-			noErr(m.CreateFirewallPolicies(mctx, fw, ports, gomock.InAnyOrder(instances)))
+			notFound(m.GetFirewall(mctx, fw))
+			noErr(m.CreateFirewall(mctx, fw, ports))
 			notFound(m.GetNEG(mctx, neg))
 			noErr(m.CreatePortmapNEG(mctx, neg))
 			notFound(m.GetBackendService(mctx, be))
@@ -429,7 +389,7 @@ func TestReconcile(t *testing.T) {
 			once(m.ListEndpoints(mctx, neg)).Return([]*gcp.PortMapping{}, nil)
 			noErr(m.AttachEndpoints(mctx, neg, s.portMappings()))
 			notFound(m.GetForwardingRule(mctx, fwdRule))
-			callErr(m.CreateForwardingRule(mctx, fwdRule, be, nil, nil, ports), errors.New("can't create forwarding rule"))
+			callErr(m.CreateForwardingRule(mctx, fwdRule, be, nil, nil), errors.New("can't create forwarding rule"))
 		},
 		expectedRes:    reconcile.Result{RequeueAfter: requeueDelay},
 		expectedErrMsg: "can't create forwarding rule",
@@ -441,12 +401,8 @@ func TestReconcile(t *testing.T) {
 			for _, port := range s.spec.NodePorts {
 				ports[port.NodePort] = struct{}{}
 			}
-			instances := make([]string, 0, len(s.nodes.Items))
-			for _, node := range s.nodes.Items {
-				instances = append(instances, node.Name)
-			}
-			notFound(m.GetFirewallPolicies(mctx, fw))
-			noErr(m.CreateFirewallPolicies(mctx, fw, ports, gomock.InAnyOrder(instances)))
+			notFound(m.GetFirewall(mctx, fw))
+			noErr(m.CreateFirewall(mctx, fw, ports))
 			notFound(m.GetNEG(mctx, neg))
 			noErr(m.CreatePortmapNEG(mctx, neg))
 			notFound(m.GetBackendService(mctx, be))
@@ -454,7 +410,7 @@ func TestReconcile(t *testing.T) {
 			once(m.ListEndpoints(mctx, neg)).Return([]*gcp.PortMapping{}, nil)
 			noErr(m.AttachEndpoints(mctx, neg, s.portMappings()))
 			notFound(m.GetForwardingRule(mctx, fwdRule))
-			noErr(m.CreateForwardingRule(mctx, fwdRule, be, nil, nil, ports))
+			noErr(m.CreateForwardingRule(mctx, fwdRule, be, nil, nil))
 			getErr(m.GetServiceAttachment(mctx, svcAtt), errors.New("can't get service attachment"))
 		},
 		expectedRes:    reconcile.Result{RequeueAfter: requeueDelay},
@@ -467,15 +423,11 @@ func TestReconcile(t *testing.T) {
 			for _, port := range s.spec.NodePorts {
 				ports[port.NodePort] = struct{}{}
 			}
-			instances := make([]string, 0, len(s.nodes.Items))
-			for _, node := range s.nodes.Items {
-				instances = append(instances, node.Name)
-			}
 			fwdRuleFQN := gcp.ForwardingRuleFQN(s.project, s.region, fwdRule)
 			consumers := toConsumerProjectLimits(s.spec.ConsumerAcceptList)
 
-			notFound(m.GetFirewallPolicies(mctx, fw))
-			noErr(m.CreateFirewallPolicies(mctx, fw, ports, gomock.InAnyOrder(instances)))
+			notFound(m.GetFirewall(mctx, fw))
+			noErr(m.CreateFirewall(mctx, fw, ports))
 			notFound(m.GetNEG(mctx, neg))
 			noErr(m.CreatePortmapNEG(mctx, neg))
 			notFound(m.GetBackendService(mctx, be))
@@ -483,7 +435,7 @@ func TestReconcile(t *testing.T) {
 			once(m.ListEndpoints(mctx, neg)).Return([]*gcp.PortMapping{}, nil)
 			noErr(m.AttachEndpoints(mctx, neg, s.portMappings()))
 			notFound(m.GetForwardingRule(mctx, fwdRule))
-			noErr(m.CreateForwardingRule(mctx, fwdRule, be, nil, nil, ports))
+			noErr(m.CreateForwardingRule(mctx, fwdRule, be, nil, nil))
 			notFound(m.GetServiceAttachment(mctx, svcAtt))
 			callErr(m.CreateServiceAttachment(mctx, svcAtt, fwdRuleFQN, consumers, s.spec.NatSubnetFQNs), errors.New("can't create service attachment"))
 		},
@@ -500,13 +452,9 @@ func TestReconcile(t *testing.T) {
 				ports[port.NodePort] = struct{}{}
 				strPorts = append(strPorts, strconv.Itoa(int(port.NodePort)))
 			}
-			instances := make([]string, 0, len(s.nodes.Items))
-			for _, node := range s.nodes.Items {
-				instances = append(instances, node.Name)
-			}
 			consumers := toConsumerProjectLimits(s.spec.ConsumerAcceptList)
 
-			once(m.GetFirewallPolicies(mctx, fw)).Return(firewallPolicy(strPorts), nil)
+			once(m.GetFirewall(mctx, fw)).Return(firewall(strPorts), nil)
 
 			notFound(m.GetNEG(mctx, neg))
 			noErr(m.CreatePortmapNEG(mctx, neg))
@@ -515,7 +463,7 @@ func TestReconcile(t *testing.T) {
 			once(m.ListEndpoints(mctx, neg)).Return([]*gcp.PortMapping{}, nil)
 			noErr(m.AttachEndpoints(mctx, neg, s.portMappings()))
 			notFound(m.GetForwardingRule(mctx, fwdRule))
-			noErr(m.CreateForwardingRule(mctx, fwdRule, be, nil, nil, ports))
+			noErr(m.CreateForwardingRule(mctx, fwdRule, be, nil, nil))
 			notFound(m.GetServiceAttachment(mctx, svcAtt))
 			noErr(m.CreateServiceAttachment(mctx, svcAtt, fwdRuleFQN, consumers, s.spec.NatSubnetFQNs))
 		},
@@ -528,14 +476,10 @@ func TestReconcile(t *testing.T) {
 			for _, port := range s.spec.NodePorts {
 				ports[port.NodePort] = struct{}{}
 			}
-			instances := make([]string, 0, len(s.nodes.Items))
-			for _, node := range s.nodes.Items {
-				instances = append(instances, node.Name)
-			}
 			consumers := toConsumerProjectLimits(s.spec.ConsumerAcceptList)
 
-			once(m.GetFirewallPolicies(mctx, fw)).Return(firewallPolicy(nil), nil)
-			noErr(m.UpdateFirewallPolicies(mctx, fw, ports, gomock.InAnyOrder(instances)))
+			once(m.GetFirewall(mctx, fw)).Return(firewall(nil), nil)
+			noErr(m.UpdateFirewall(mctx, fw, ports))
 
 			notFound(m.GetNEG(mctx, neg))
 			noErr(m.CreatePortmapNEG(mctx, neg))
@@ -544,7 +488,7 @@ func TestReconcile(t *testing.T) {
 			once(m.ListEndpoints(mctx, neg)).Return([]*gcp.PortMapping{}, nil)
 			noErr(m.AttachEndpoints(mctx, neg, s.portMappings()))
 			notFound(m.GetForwardingRule(mctx, fwdRule))
-			noErr(m.CreateForwardingRule(mctx, fwdRule, be, nil, nil, ports))
+			noErr(m.CreateForwardingRule(mctx, fwdRule, be, nil, nil))
 			notFound(m.GetServiceAttachment(mctx, svcAtt))
 			noErr(m.CreateServiceAttachment(mctx, svcAtt, fwdRuleFQN, consumers, s.spec.NatSubnetFQNs))
 		},
@@ -561,7 +505,7 @@ func TestReconcile(t *testing.T) {
 			}
 			consumers := toConsumerProjectLimits(s.spec.ConsumerAcceptList)
 
-			once(m.GetFirewallPolicies(mctx, fw)).Return(firewallPolicy(strPorts), nil)
+			once(m.GetFirewall(mctx, fw)).Return(firewall(strPorts), nil)
 
 			once(m.GetNEG(mctx, neg)).Return(&computepb.NetworkEndpointGroup{}, nil)
 
@@ -570,7 +514,7 @@ func TestReconcile(t *testing.T) {
 			once(m.ListEndpoints(mctx, neg)).Return([]*gcp.PortMapping{}, nil)
 			noErr(m.AttachEndpoints(mctx, neg, s.portMappings()))
 			notFound(m.GetForwardingRule(mctx, fwdRule))
-			noErr(m.CreateForwardingRule(mctx, fwdRule, be, nil, nil, ports))
+			noErr(m.CreateForwardingRule(mctx, fwdRule, be, nil, nil))
 			notFound(m.GetServiceAttachment(mctx, svcAtt))
 			noErr(m.CreateServiceAttachment(mctx, svcAtt, fwdRuleFQN, consumers, s.spec.NatSubnetFQNs))
 		},
@@ -587,7 +531,7 @@ func TestReconcile(t *testing.T) {
 			}
 			consumers := toConsumerProjectLimits(s.spec.ConsumerAcceptList)
 
-			once(m.GetFirewallPolicies(mctx, fw)).Return(firewallPolicy(strPorts), nil)
+			once(m.GetFirewall(mctx, fw)).Return(firewall(strPorts), nil)
 			once(m.GetNEG(mctx, neg)).Return(&computepb.NetworkEndpointGroup{}, nil)
 
 			once(m.GetBackendService(mctx, be)).Return(&computepb.BackendService{}, nil)
@@ -595,7 +539,7 @@ func TestReconcile(t *testing.T) {
 			once(m.ListEndpoints(mctx, neg)).Return([]*gcp.PortMapping{}, nil)
 			noErr(m.AttachEndpoints(mctx, neg, s.portMappings()))
 			notFound(m.GetForwardingRule(mctx, fwdRule))
-			noErr(m.CreateForwardingRule(mctx, fwdRule, be, nil, nil, ports))
+			noErr(m.CreateForwardingRule(mctx, fwdRule, be, nil, nil))
 			notFound(m.GetServiceAttachment(mctx, svcAtt))
 			noErr(m.CreateServiceAttachment(mctx, svcAtt, fwdRuleFQN, consumers, s.spec.NatSubnetFQNs))
 		},
@@ -610,7 +554,7 @@ func TestReconcile(t *testing.T) {
 			}
 			consumers := toConsumerProjectLimits(s.spec.ConsumerAcceptList)
 
-			once(m.GetFirewallPolicies(mctx, fw)).Return(firewallPolicy(strPorts), nil)
+			once(m.GetFirewall(mctx, fw)).Return(firewall(strPorts), nil)
 			once(m.GetNEG(mctx, neg)).Return(&computepb.NetworkEndpointGroup{}, nil)
 			once(m.GetBackendService(mctx, be)).Return(&computepb.BackendService{}, nil)
 			once(m.ListEndpoints(mctx, neg)).Return([]*gcp.PortMapping{}, nil)
@@ -630,7 +574,7 @@ func TestReconcile(t *testing.T) {
 				strPorts = append(strPorts, strconv.Itoa(int(port.NodePort)))
 			}
 
-			once(m.GetFirewallPolicies(mctx, fw)).Return(firewallPolicy(strPorts), nil)
+			once(m.GetFirewall(mctx, fw)).Return(firewall(strPorts), nil)
 			once(m.GetNEG(mctx, neg)).Return(&computepb.NetworkEndpointGroup{}, nil)
 			once(m.GetBackendService(mctx, be)).Return(&computepb.BackendService{}, nil)
 			once(m.ListEndpoints(mctx, neg)).Return([]*gcp.PortMapping{}, nil)
@@ -653,7 +597,7 @@ func TestReconcile(t *testing.T) {
 				Port: 443, Instance: "instance2", InstancePort: 8443,
 			}}
 
-			once(m.GetFirewallPolicies(mctx, fw)).Return(firewallPolicy(strPorts), nil)
+			once(m.GetFirewall(mctx, fw)).Return(firewall(strPorts), nil)
 			once(m.GetNEG(mctx, neg)).Return(&computepb.NetworkEndpointGroup{}, nil)
 			once(m.GetBackendService(mctx, be)).Return(&computepb.BackendService{}, nil)
 
@@ -734,8 +678,8 @@ func TestDelete(t *testing.T) {
 		}
 		consumers := toConsumerProjectLimits(s.spec.ConsumerAcceptList)
 
-		notFound(m.GetFirewallPolicies(mctx, fw))
-		noErr(m.CreateFirewallPolicies(mctx, fw, ports, gomock.InAnyOrder(instances)))
+		notFound(m.GetFirewall(mctx, fw))
+		noErr(m.CreateFirewall(mctx, fw, ports))
 		notFound(m.GetNEG(mctx, neg))
 		noErr(m.CreatePortmapNEG(mctx, neg))
 		notFound(m.GetBackendService(mctx, be))
@@ -743,7 +687,7 @@ func TestDelete(t *testing.T) {
 		once(m.ListEndpoints(mctx, neg)).Return([]*gcp.PortMapping{}, nil)
 		noErr(m.AttachEndpoints(mctx, neg, s.portMappings()))
 		notFound(m.GetForwardingRule(mctx, fwdRule))
-		noErr(m.CreateForwardingRule(mctx, fwdRule, be, nil, nil, ports))
+		noErr(m.CreateForwardingRule(mctx, fwdRule, be, nil, nil))
 		notFound(m.GetServiceAttachment(mctx, svcAtt))
 		noErr(m.CreateServiceAttachment(mctx, svcAtt, fwdRuleFQN, consumers, s.spec.NatSubnetFQNs))
 	}
@@ -763,7 +707,7 @@ func TestDelete(t *testing.T) {
 			noErr(m.DeleteForwardingRule(mctx, fwdRule))
 			noErr(m.DeleteBackendService(mctx, be))
 			noErr(m.DeletePortmapNEG(mctx, neg))
-			noErr(m.DeleteFirewallPolicies(mctx, fw))
+			noErr(m.DeleteFirewall(mctx, fw))
 		},
 		assert: func(t *testing.T, c client.Client, s *state) {
 			// Check that the nodeport was deleted too.
@@ -780,7 +724,7 @@ func TestDelete(t *testing.T) {
 			callErr(m.DeleteForwardingRule(mctx, fwdRule), gcp.ErrNotFound)
 			callErr(m.DeleteBackendService(mctx, be), gcp.ErrNotFound)
 			callErr(m.DeletePortmapNEG(mctx, neg), gcp.ErrNotFound)
-			callErr(m.DeleteFirewallPolicies(mctx, fw), gcp.ErrNotFound)
+			callErr(m.DeleteFirewall(mctx, fw), gcp.ErrNotFound)
 		},
 		expectedRes: reconcile.Result{},
 	}, {
@@ -829,7 +773,7 @@ func TestDelete(t *testing.T) {
 			noErr(m.DeleteForwardingRule(mctx, fwdRule))
 			noErr(m.DeleteBackendService(mctx, be))
 			noErr(m.DeletePortmapNEG(mctx, neg))
-			callErr(m.DeleteFirewallPolicies(mctx, fw), errors.New("can't delete firewall policies"))
+			callErr(m.DeleteFirewall(mctx, fw), errors.New("can't delete firewall policies"))
 		},
 		expectedRes:    reconcile.Result{RequeueAfter: requeueDelay},
 		expectedErrMsg: "can't delete firewall policies",
@@ -905,15 +849,11 @@ func once(c *gomock.Call) *gomock.Call {
 	return c.Times(1)
 }
 
-func firewallPolicy(ports []string) *computepb.FirewallPolicy {
-	return &computepb.FirewallPolicy{
-		Rules: []*computepb.FirewallPolicyRule{{
-			Match: &computepb.FirewallPolicyRuleMatcher{
-				Layer4Configs: []*computepb.FirewallPolicyRuleMatcherLayer4Config{{
-					IpProtocol: stringPtr("tcp"),
-					Ports:      ports,
-				}},
-			}},
-		},
+func firewall(ports []string) *computepb.Firewall {
+	return &computepb.Firewall{
+		Allowed: []*computepb.Allowed{{
+			IPProtocol: stringPtr("tcp"),
+			Ports:      ports,
+		}},
 	}
 }
