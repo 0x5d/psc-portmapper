@@ -49,7 +49,7 @@ type Client interface {
 	DeleteBackendService(ctx context.Context, name string) error
 	// Forwarding Rules API
 	GetForwardingRule(ctx context.Context, name string) (*computepb.ForwardingRule, error)
-	CreateForwardingRule(ctx context.Context, name, backendSvc string, ip *string, globalAccess *bool, ports map[int32]struct{}) error
+	CreateForwardingRule(ctx context.Context, name, backendSvc string, ip *string, globalAccess *bool) error
 	DeleteForwardingRule(ctx context.Context, name string) error
 	// Service Attachments API
 	GetServiceAttachment(ctx context.Context, name string) (*computepb.ServiceAttachment, error)
@@ -329,10 +329,13 @@ func (c *GCPClient) GetForwardingRule(ctx context.Context, name string) (*comput
 	return c.fwdRules.Get(ctx, req, callOpts()...)
 }
 
-func (c *GCPClient) CreateForwardingRule(ctx context.Context, name, backendSvc string, ip *string, globalAccess *bool, ports map[int32]struct{}) error {
+func (c *GCPClient) CreateForwardingRule(ctx context.Context, name, backendSvc string, ip *string, globalAccess *bool) error {
 	reqID := uuid.New().String()
 	scheme := computepb.BackendService_INTERNAL.String()
-	strPorts := toSortedStr(ports)
+	tcp := computepb.ForwardingRule_TCP.String()
+	backendFQN := BackendServiceFQN(c.cfg.Project, c.cfg.Region, backendSvc)
+	// AllPorts must be set to true when the target is a backend service with a port mapping network endpoint group backend.
+	allPorts := true
 	req := &computepb.InsertForwardingRuleRequest{
 		RequestId: &reqID,
 		Project:   c.cfg.Project,
@@ -340,11 +343,12 @@ func (c *GCPClient) CreateForwardingRule(ctx context.Context, name, backendSvc s
 		ForwardingRuleResource: &computepb.ForwardingRule{
 			Name:                &name,
 			IPAddress:           ip,
+			IPProtocol:          &tcp,
 			AllowGlobalAccess:   globalAccess,
-			BackendService:      &backendSvc,
+			BackendService:      &backendFQN,
 			Network:             &c.cfg.Network,
 			Subnetwork:          &c.cfg.Subnetwork,
-			Ports:               strPorts,
+			AllPorts:            &allPorts,
 			LoadBalancingScheme: &scheme,
 		},
 	}
