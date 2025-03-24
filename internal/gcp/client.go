@@ -14,6 +14,7 @@ import (
 	"github.com/googleapis/gax-go/v2/apierror"
 	"google.golang.org/api/iterator"
 	"google.golang.org/api/option"
+	"k8s.io/utils/net"
 )
 
 type ClientError struct {
@@ -98,6 +99,10 @@ func NewClient(ctx context.Context, cfg ClientConfig, opts ...option.ClientOptio
 		return nil, err
 	}
 	svcAtts, err := compute.NewServiceAttachmentsRESTClient(ctx, opts...)
+	if err != nil {
+		return nil, err
+	}
+
 	return &GCPClient{cfg: &cfg, negs: negs, firewalls: firewalls, backendSvcs: backendSvcs, fwdRules: fwdRules, svcAtts: svcAtts}, nil
 }
 
@@ -227,7 +232,6 @@ func (c *GCPClient) GetFirewall(ctx context.Context, name string) (*computepb.Fi
 
 func (c *GCPClient) CreateFirewall(ctx context.Context, name string, ports map[int32]struct{}) error {
 	reqID := uuid.New().String()
-	tcp := "tcp"
 	priority := int32(1000)
 	ingress := computepb.FirewallPolicyRule_INGRESS.String()
 	strPorts := toSortedStr(ports)
@@ -240,9 +244,9 @@ func (c *GCPClient) CreateFirewall(ctx context.Context, name string, ports map[i
 			Direction: &ingress,
 			Network:   &c.cfg.Network,
 			Priority:  &priority,
-			//TODO: TargetTags: []string{}, OR DestinationRanges: []string{},
+			// TODO: TargetTags: []string{}, OR DestinationRanges: []string{},
 			Allowed: []*computepb.Allowed{{
-				IPProtocol: &tcp,
+				IPProtocol: toPtr(string(net.TCP)),
 				Ports:      strPorts,
 			}},
 		},
@@ -252,7 +256,6 @@ func (c *GCPClient) CreateFirewall(ctx context.Context, name string, ports map[i
 
 func (c *GCPClient) UpdateFirewall(ctx context.Context, name string, ports map[int32]struct{}) error {
 	reqID := uuid.New().String()
-	tcp := "tcp"
 	strPorts := toSortedStr(ports)
 	req := &computepb.PatchFirewallRequest{
 		RequestId: &reqID,
@@ -261,7 +264,7 @@ func (c *GCPClient) UpdateFirewall(ctx context.Context, name string, ports map[i
 		FirewallResource: &computepb.Firewall{
 			Name: &name,
 			Allowed: []*computepb.Allowed{{
-				IPProtocol: &tcp,
+				IPProtocol: toPtr(string(net.TCP)),
 				Ports:      strPorts,
 			}},
 		},
@@ -293,7 +296,6 @@ func (c *GCPClient) GetBackendService(ctx context.Context, name string) (*comput
 
 func (c *GCPClient) CreateBackendService(ctx context.Context, name string, neg string) error {
 	reqID := uuid.New().String()
-	protocol := computepb.BackendService_TCP.String()
 	negFQN := NEGFQN(c.cfg.Project, c.cfg.Region, neg)
 	internal := computepb.BackendService_INTERNAL.String()
 	req := &computepb.InsertRegionBackendServiceRequest{
@@ -303,7 +305,7 @@ func (c *GCPClient) CreateBackendService(ctx context.Context, name string, neg s
 		BackendServiceResource: &computepb.BackendService{
 			Name:                &name,
 			Network:             &c.cfg.Network,
-			Protocol:            &protocol,
+			Protocol:            toPtr(string(net.TCP)),
 			LoadBalancingScheme: &internal,
 			Backends: []*computepb.Backend{{
 				Group: &negFQN,

@@ -117,6 +117,9 @@ func main() {
 		os.Exit(1)
 	}
 
+	log.Info("namespace", "namespace", namespace)
+	// TODO: Print config.
+
 	gcpClient, err := gcp.NewClient(context.Background(), *cfg.GCP)
 	if err != nil {
 		log.Error(err, "unable to initialize GCP client")
@@ -124,7 +127,11 @@ func main() {
 	}
 
 	portmapper := controller.New(mgr.GetClient(), gcpClient)
-	portmapper.SetupWithManager(mgr)
+	err = portmapper.SetupWithManager(mgr)
+	if err != nil {
+		log.Error(err, "unable to setup controller")
+		os.Exit(1)
+	}
 
 	if err := mgr.AddHealthzCheck("healthz", healthz.Ping); err != nil {
 		log.Error(err, "unable to set up health check")

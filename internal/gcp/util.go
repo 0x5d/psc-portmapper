@@ -74,9 +74,13 @@ func isFQN(s string) bool {
 
 func toSortedStr(is map[int32]struct{}) []string {
 	ss := make([]string, 0, len(is))
-	for p, _ := range is {
+	for p := range is {
 		ss = append(ss, strconv.Itoa(int(p)))
 	}
 	sort.Slice(ss, func(i int, j int) bool { return ss[i] < ss[j] })
 	return ss
+}
+
+func toPtr[T any](t T) *T {
+	return &t
 }

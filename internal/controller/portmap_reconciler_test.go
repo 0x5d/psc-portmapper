@@ -672,10 +672,6 @@ func TestDelete(t *testing.T) {
 		for _, port := range s.spec.NodePorts {
 			ports[port.NodePort] = struct{}{}
 		}
-		instances := make([]string, 0, len(s.nodes.Items))
-		for _, node := range s.nodes.Items {
-			instances = append(instances, node.Name)
-		}
 		consumers := toConsumerProjectLimits(s.spec.ConsumerAcceptList)
 
 		notFound(m.GetFirewall(mctx, fw))
@@ -806,14 +802,14 @@ func TestDelete(t *testing.T) {
 					Name:      initState.sts.Name,
 				},
 			}
-			res, err := r.Reconcile(ctx, req)
+			_, err := r.Reconcile(ctx, req)
 			require.NoError(t, err)
 
 			tt.setup(t, gcpClient, initState)
 
 			// Delete the sts so that the reconcile loop will exercise the delete path.
 			require.NoError(t, c.Delete(ctx, initState.sts))
-			res, err = r.Reconcile(ctx, req)
+			res, err := r.Reconcile(ctx, req)
 
 			if tt.expectedErrMsg != "" {
 				require.EqualError(t, err, tt.expectedErrMsg)
@@ -829,15 +825,15 @@ func TestDelete(t *testing.T) {
 	}
 }
 
-func notFound(c *gomock.Call) *gomock.Call {
+func notFound(c *gomock.Call) *gomock.Call { //nolint:unparam // the *gomock.Call isn't used right now, but it should be chainable.
 	return getErr(c, gcp.ErrNotFound)
 }
 
-func noErr(c *gomock.Call) *gomock.Call {
-	return once(c).Return(nil)
+func noErr(c *gomock.Call) *gomock.Call { //nolint:unparam // the *gomock.Call isn't used right now, but it should be chainable.
+	return callErr(c, nil)
 }
 
-func getErr(c *gomock.Call, err error) *gomock.Call {
+func getErr(c *gomock.Call, err error) *gomock.Call { //nolint:unparam // the *gomock.Call isn't used right now, but it should be chainable.
 	return once(c).Return(nil, err)
 }
 

@@ -66,7 +66,6 @@ func (r *PortmapReconciler) Reconcile(ctx context.Context, req reconcile.Request
 			log.Error(err, "Failed to get StatefulSet.")
 			return reconcile.Result{}, err
 		}
-		log.Info("Couldn't find the STS that triggered the reconciliation.")
 		return reconcile.Result{}, nil
 	}
 
@@ -97,7 +96,7 @@ func (r *PortmapReconciler) Reconcile(ctx context.Context, req reconcile.Request
 		return reconcile.Result{RequeueAfter: requeueDelay}, err
 	}
 
-	if sts.DeletionTimestamp != nil {
+	if !sts.DeletionTimestamp.IsZero() {
 		err := r.delete(ctx, log, &spec, sts)
 		if err != nil {
 			log.Error(err, "Failed to delete resources.")
@@ -161,7 +160,7 @@ func (r *PortmapReconciler) Reconcile(ctx context.Context, req reconcile.Request
 		return reconcile.Result{RequeueAfter: requeueDelay}, err
 	}
 
-	err = r.reconcile(ctx, log, &spec, ports, mappings, hostnames)
+	err = r.reconcile(ctx, log, &spec, ports, mappings)
 	if err != nil {
 		log.Error(err, "Failed to reconcile the resources.")
 		return reconcile.Result{RequeueAfter: requeueDelay}, err
@@ -204,7 +203,6 @@ func (r *PortmapReconciler) getNodes(ctx context.Context, log logr.Logger, pods 
 	nodesCh := make(chan *corev1.Node, numPods)
 	wg := errgroup.Group{}
 	for _, p := range pods {
-		p := p
 		nodeName := p.Spec.NodeName
 		if nodeName == "" {
 			log.Info("Skipping getting node info for unscheduled pod.", "namespace", p.Namespace, "name", p.Name)
@@ -228,22 +226,14 @@ func (r *PortmapReconciler) getNodes(ctx context.Context, log logr.Logger, pods 
 	}
 	nodes := make(map[string]*corev1.Node, numPods)
 
-loop:
-	for {
-		select {
-		case node, ok := <-nodesCh:
-			if !ok {
-				break loop
-			}
-			nodes[node.ObjectMeta.Name] = node
-		default:
-		}
+	for node := range nodesCh {
+		nodes[node.Name] = node
 	}
 
 	return nodes, nil
 }
 
-func (r *PortmapReconciler) reconcile(ctx context.Context, log logr.Logger, spec *Spec, ports map[int32]struct{}, mappings []*gcp.PortMapping, hostnames []string) error {
+func (r *PortmapReconciler) reconcile(ctx context.Context, log logr.Logger, spec *Spec, ports map[int32]struct{}, mappings []*gcp.PortMapping) error {
 	reconcilers := []struct {
 		resource      string
 		reconcileFunc func() error
