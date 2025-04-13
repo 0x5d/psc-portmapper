@@ -234,6 +234,21 @@ func TestReconcile(t *testing.T) {
 			require.Equal(t, nodeport.Labels, map[string]string{managedByLabel: portmapperApp})
 		},
 	}, {
+		name: "Removes the finalizer if the statefulset isn't annotated",
+		state: func() *state {
+			s := initialState()
+			s.sts.Annotations = nil
+			s.sts.Finalizers = []string{finalizer}
+			return s
+		},
+		assert: func(t *testing.T, c client.Client, s *state) {
+			sts := &appsv1.StatefulSet{}
+			err := c.Get(ctx, types.NamespacedName{Namespace: s.sts.Namespace, Name: s.sts.Name}, sts)
+			require.NoError(t, err)
+			require.Empty(t, sts.Finalizers)
+		},
+		expectedRes: reconcile.Result{},
+	}, {
 		name: "Fails if it can't get the firewall",
 		setup: func(t *testing.T, mock *mock.MockClient, s *state) {
 			getErr(mock.EXPECT().GetFirewall(mctx, fw), errors.New("can't get firewall"))
@@ -629,7 +644,9 @@ func TestReconcile(t *testing.T) {
 			gcpClient.EXPECT().Project().AnyTimes().Return(initState.project)
 			gcpClient.EXPECT().Region().AnyTimes().Return(initState.region)
 
-			tt.setup(t, gcpClient, initState)
+			if tt.setup != nil {
+				tt.setup(t, gcpClient, initState)
+			}
 
 			r := New(c, gcpClient)
 			req := reconcile.Request{

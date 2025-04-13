@@ -71,8 +71,8 @@ func (r *PortmapReconciler) Reconcile(ctx context.Context, req reconcile.Request
 
 	a, ok := sts.Annotations[annotation]
 	if !ok {
-		log.Info("The STS is missing the " + annotation + " annotation")
-		return reconcile.Result{}, nil
+		log.Info("The STS is missing the " + annotation + " annotation. Attempting to remove the finalizer.")
+		return reconcile.Result{}, r.removeFinalizer(ctx, log, sts)
 	}
 
 	if controllerutil.AddFinalizer(sts, finalizer) {
@@ -337,14 +337,7 @@ func (r *PortmapReconciler) delete(ctx context.Context, log logr.Logger, spec *S
 		log.Info("Resource not found, so nothing to delete. Was it removed manually or by another process?", "type", d.resource)
 	}
 
-	if controllerutil.RemoveFinalizer(sts, finalizer) {
-		err := r.Update(ctx, sts)
-		if err != nil {
-			log.Error(err, "Failed to remove finalizer from the STS.", "namespace", sts.Namespace, "name", sts.Name)
-			return err
-		}
-	}
-	return nil
+	return r.removeFinalizer(ctx, log, sts)
 }
 
 func (r *PortmapReconciler) reconcileNodePortService(
