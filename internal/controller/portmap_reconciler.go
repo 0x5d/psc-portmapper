@@ -2,7 +2,6 @@ package controller
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"regexp"
@@ -69,10 +68,16 @@ func (r *PortmapReconciler) Reconcile(ctx context.Context, req reconcile.Request
 		return reconcile.Result{}, nil
 	}
 
-	a, ok := sts.Annotations[annotation]
+	jsonSpec, ok := sts.Annotations[annotation]
 	if !ok {
 		log.Info("The STS is missing the " + annotation + " annotation. Attempting to remove the finalizer.")
 		return reconcile.Result{}, r.removeFinalizer(ctx, log, sts)
+	}
+
+	spec, err := parseSpec(log, jsonSpec)
+	if err != nil {
+		log.Error(err, "Failed to parse the spec.")
+		return reconcile.Result{}, err
 	}
 
 	if controllerutil.AddFinalizer(sts, finalizer) {
@@ -83,21 +88,8 @@ func (r *PortmapReconciler) Reconcile(ctx context.Context, req reconcile.Request
 		}
 	}
 
-	var spec Spec
-	err = json.Unmarshal([]byte(a), &spec)
-	if err != nil {
-		log.Error(err, "Couldn't decode the spec from the annotation.", "value", a)
-		return reconcile.Result{RequeueAfter: requeueDelay}, err
-	}
-
-	err = validateSpec(log, &spec)
-	if err != nil {
-		log.Error(err, "Invalid spec")
-		return reconcile.Result{RequeueAfter: requeueDelay}, err
-	}
-
 	if !sts.DeletionTimestamp.IsZero() {
-		err := r.delete(ctx, log, &spec, sts)
+		err := r.delete(ctx, log, spec, sts)
 		if err != nil {
 			log.Error(err, "Failed to delete resources.")
 			return reconcile.Result{RequeueAfter: requeueDelay}, err
@@ -154,13 +146,13 @@ func (r *PortmapReconciler) Reconcile(ctx context.Context, req reconcile.Request
 		return reconcile.Result{RequeueAfter: requeueDelay}, err
 	}
 
-	mappings, err := r.getPortMappings(log, &spec, nodes, pods.Items)
+	mappings, err := r.getPortMappings(log, spec, nodes, pods.Items)
 	if err != nil {
 		log.Error(err, "Failed to get the port mappings.")
 		return reconcile.Result{RequeueAfter: requeueDelay}, err
 	}
 
-	err = r.reconcile(ctx, log, &spec, ports, mappings)
+	err = r.reconcile(ctx, log, spec, ports, mappings)
 	if err != nil {
 		log.Error(err, "Failed to reconcile the resources.")
 		return reconcile.Result{RequeueAfter: requeueDelay}, err
