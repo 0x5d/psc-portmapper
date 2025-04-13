@@ -1,6 +1,7 @@
 package controller
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"regexp"
@@ -41,14 +42,30 @@ var networkFQNRegexp = regexp.MustCompile(`^projects\/[^/]+\/global\/networks\/[
 // projects/my-project-id/regions/us-east1/subnetworks/my-subnet-name
 var subnetFQNRegexp = regexp.MustCompile(`^projects\/[^/]+\/regions\/[^/]+\/subnetworks\/[^/]+$`)
 
+func parseSpec(log logr.Logger, jsonSpec string) (*Spec, error) {
+	var spec Spec
+	err := json.Unmarshal([]byte(jsonSpec), &spec)
+	if err != nil {
+		return nil, fmt.Errorf("couldn't decode the spec from JSON: %w", err)
+	}
+
+	err = validateSpec(log, &spec)
+	if err != nil {
+		return nil, fmt.Errorf("invalid spec: %w", err)
+	}
+	return &spec, nil
+}
+
 func validateSpec(log logr.Logger, spec *Spec) error {
 	if spec == nil {
 		return fmt.Errorf("spec is nil")
 	}
-	var err error
+
 	if len(spec.ConsumerAcceptList) == 0 {
 		log.Info("consumer_accept_list is empty, no incoming connections will be allowed.")
 	}
+
+	var err error
 	for i, c := range spec.ConsumerAcceptList {
 		if c.NetworkFQN == nil && c.ProjectIdOrNum == nil {
 			err = multierr.Append(err, fmt.Errorf("either network_fqn or project_id_or_num must be set in consumer_list[%d]", i))
