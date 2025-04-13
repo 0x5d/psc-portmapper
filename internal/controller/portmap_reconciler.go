@@ -170,6 +170,17 @@ func (r *PortmapReconciler) Reconcile(ctx context.Context, req reconcile.Request
 	return reconcile.Result{}, nil
 }
 
+func (r *PortmapReconciler) removeFinalizer(ctx context.Context, log logr.Logger, sts *appsv1.StatefulSet) error {
+	if controllerutil.RemoveFinalizer(sts, finalizer) {
+		err := r.Update(ctx, sts)
+		if err != nil {
+			log.Error(err, "Failed to remove finalizer from the STS.", "namespace", sts.Namespace, "name", sts.Name)
+			return err
+		}
+	}
+	return nil
+}
+
 func (r *PortmapReconciler) getPortMappings(log logr.Logger, spec *Spec, nodes map[string]*corev1.Node, pods []corev1.Pod) ([]*gcp.PortMapping, error) {
 	numPods := len(pods)
 	// Reconcile the resources.
