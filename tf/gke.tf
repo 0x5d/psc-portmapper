@@ -51,5 +51,5 @@ resource "google_container_node_pool" "primary_nodes" {
 
 data "google_container_engine_versions" "gke_version" {
   location       = var.region
-  version_prefix = "1.27."
+  version_prefix = "1.31."
 }
